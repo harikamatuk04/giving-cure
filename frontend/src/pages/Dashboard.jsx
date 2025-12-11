@@ -33,11 +33,11 @@ function Stat({ label, value }) {
 
 function Modal({ title, children, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
-      <div className="bg-white rounded-xl p-6 w-96 shadow-lg space-y-4">
+    <div className="fixed inset-0 bg-black/40 flex justify-center items-center" onClick={onClose}>
+      <div className="bg-white rounded-xl p-6 w-96 shadow-lg space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-semibold">{title}</h2>
-          <button className="text-red-500" onClick={onClose}>✕</button>
+          <button type="button" className="text-red-500" onClick={onClose}>✕</button>
         </div>
         {children}
       </div>
@@ -84,19 +84,39 @@ export default function Dashboard() {
   // --------- ADD NEW INVENTORY ----------
   const handleAddInventory = async (e) => {
     e.preventDefault();
-    await addInventory(newInventory);
-    setShowAddInventory(false);
-    setNewInventory({ org: "", city: "", item: "", qty: "", expiry: "" });
-    loadData();
+    try {
+      const response = await addInventory(newInventory);
+      setShowAddInventory(false);
+      setNewInventory({ org: "", city: "", item: "", qty: "", expiry: "" });
+      loadData();
+    } catch (error) {
+      console.error("Error adding inventory:", error);
+      const errorMessage = error.response?.data?.error || error.message || "Unknown error";
+      if (errorMessage.includes("MongoDB") || errorMessage.includes("buffering")) {
+        alert("Database connection error. Please ensure MongoDB is running.");
+      } else {
+        alert(`Failed to add inventory: ${errorMessage}`);
+      }
+    }
   };
 
   // --------- ADD NEW REQUEST ----------
   const handleAddRequest = async (e) => {
     e.preventDefault();
-    await addRequest(newRequest);
-    setShowAddRequest(false);
-    setNewRequest({ org: "", city: "", item: "", qty: "", urgency: "" });
-    loadData();
+    try {
+      const response = await addRequest(newRequest);
+      setShowAddRequest(false);
+      setNewRequest({ org: "", city: "", item: "", qty: "", urgency: "" });
+      loadData();
+    } catch (error) {
+      console.error("Error adding request:", error);
+      const errorMessage = error.response?.data?.error || error.message || "Unknown error";
+      if (errorMessage.includes("MongoDB") || errorMessage.includes("buffering")) {
+        alert("Database connection error. Please ensure MongoDB is running.");
+      } else {
+        alert(`Failed to add request: ${errorMessage}`);
+      }
+    }
   };
 
   // --------- DELETE ----------
@@ -256,7 +276,7 @@ export default function Dashboard() {
               onChange={(e) => setNewInventory({ ...newInventory, expiry: e.target.value })}
             />
 
-            <button className="w-full bg-indigo-600 text-white py-2 rounded">Submit</button>
+            <button type="submit" className="w-full bg-indigo-600 text-white py-2 rounded">Submit</button>
           </form>
         </Modal>
       )}
@@ -301,7 +321,7 @@ export default function Dashboard() {
               <option value="High">High</option>
             </select>
 
-            <button className="w-full bg-green-600 text-white py-2 rounded">Submit</button>
+            <button type="submit" className="w-full bg-green-600 text-white py-2 rounded">Submit</button>
           </form>
         </Modal>
       )}
