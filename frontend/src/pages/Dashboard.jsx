@@ -73,6 +73,10 @@ export default function Dashboard() {
     urgency: "",
   });
 
+  // Grouping and sorting state
+  const [groupBy, setGroupBy] = useState("hospital"); // "hospital", "city", "item"
+  const [sortByExpiry, setSortByExpiry] = useState(false);
+
   // Handle hospital selection - auto-populate city
   const handleHospitalChange = (hospitalName, isInventory = true) => {
     const city = getCityByHospital(hospitalName);
@@ -159,6 +163,54 @@ export default function Dashboard() {
     loadData();
   };
 
+  // --------- GROUPING AND SORTING LOGIC ----------
+  const getProcessedInventories = () => {
+    let processed = [...inventories];
+
+    // Sort by expiry if enabled
+    if (sortByExpiry) {
+      processed.sort((a, b) => {
+        const dateA = new Date(a.expiry);
+        const dateB = new Date(b.expiry);
+        return dateA - dateB; // Ascending order (earliest expiry first)
+      });
+    }
+
+    return processed;
+  };
+
+  const getGroupedInventories = () => {
+    const processed = getProcessedInventories();
+
+    const grouped = {};
+    processed.forEach((item) => {
+      let key;
+      if (groupBy === "hospital") {
+        key = item.org;
+      } else if (groupBy === "city") {
+        key = item.city;
+      } else if (groupBy === "item") {
+        key = item.item;
+      } else {
+        key = item.org; // Default to hospital if somehow invalid
+      }
+
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(item);
+    });
+
+    // Sort group keys alphabetically
+    const sortedKeys = Object.keys(grouped).sort();
+    const sortedGroups = {};
+    sortedKeys.forEach((key) => {
+      sortedGroups[key] = grouped[key];
+    });
+
+    return sortedGroups;
+  };
+
   // --------- UI ----------
   return (
     <div className="max-w-6xl mx-auto p-8 space-y-8">
@@ -191,33 +243,71 @@ export default function Dashboard() {
 
       {/* INVENTORY TABLE */}
       <Card title="Inventory">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="p-2 text-left">Hospital</th>
-              <th className="p-2 text-left">City</th>
-              <th className="p-2 text-left">Item</th>
-              <th className="p-2 text-left">Qty</th>
-              <th className="p-2 text-left">Expiry</th>
-              <th className="p-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {inventories.map((i) => (
-              <tr key={i._id} className="border-b">
-                <td className="p-2">{i.org}</td>
-                <td className="p-2">{i.city}</td>
-                <td className="p-2">{i.item}</td>
-                <td className="p-2">{i.qty}</td>
-                <td className="p-2">{i.expiry}</td>
-                <td className="p-2 flex gap-3">
-                  <button className="text-blue-600" onClick={() => setEditItem(i)}>Edit</button>
-                  <button className="text-red-600" onClick={() => handleDeleteInventory(i._id)}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* Grouping and Sorting Controls */}
+        <div className="mb-4 flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Group by:</label>
+            <select
+              className="border p-2 rounded-lg text-sm"
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value)}
+            >
+              <option value="hospital">Hospital</option>
+              <option value="city">City</option>
+              <option value="item">Item</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Sort by expiry:</label>
+            <input
+              type="checkbox"
+              checked={sortByExpiry}
+              onChange={(e) => setSortByExpiry(e.target.checked)}
+              className="w-4 h-4"
+            />
+          </div>
+        </div>
+
+        {/* Grouped Inventory Display */}
+        {Object.entries(getGroupedInventories()).map(([groupKey, groupItems]) => (
+          <div key={groupKey} className="mb-6">
+            <h4 className="text-md font-semibold mb-2 text-indigo-700">
+              {groupBy === "hospital" && "🏥 "}
+              {groupBy === "city" && "📍 "}
+              {groupBy === "item" && "📦 "}
+              {groupKey} ({groupItems.length} {groupItems.length === 1 ? "item" : "items"})
+            </h4>
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 text-center">Hospital</th>
+                  <th className="p-2 text-center">City</th>
+                  <th className="p-2 text-center">Item</th>
+                  <th className="p-2 text-center">Qty</th>
+                  <th className="p-2 text-center">Expiry</th>
+                  <th className="p-2 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupItems.map((i) => (
+                  <tr key={i._id} className="border-b">
+                    <td className="p-2 text-center">{i.org}</td>
+                    <td className="p-2 text-center">{i.city}</td>
+                    <td className="p-2 text-center">{i.item}</td>
+                    <td className="p-2 text-center">{i.qty}</td>
+                    <td className="p-2 text-center">{i.expiry}</td>
+                    <td className="p-2 text-center">
+                      <div className="flex gap-3 justify-center">
+                        <button className="text-blue-600" onClick={() => setEditItem(i)}>Edit</button>
+                        <button className="text-red-600" onClick={() => handleDeleteInventory(i._id)}>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </Card>
 
       {/* REQUEST TABLE */}
