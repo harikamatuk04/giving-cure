@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 
 const inventoryRoutes = require("./routes/inventoryRoutes");
 const requestRoutes = require("./routes/requestRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 app.use(cors());
@@ -19,6 +20,7 @@ mongoose
 // Routes
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/requests", requestRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Simple data viewer endpoint (for development)
 app.get("/api/view", async (req, res) => {

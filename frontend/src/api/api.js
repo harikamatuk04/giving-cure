@@ -18,4 +18,9 @@ export const addRequest = (data) => api.post("/requests", data);
 export const deleteRequest = (id) => api.delete(`/requests/${id}`);
 export const updateRequest = (id, data) => api.put(`/requests/${id}`, data);
 
+// -------------------- Notification endpoints --------------------
+
+export const getNotifications = () => api.get("/notifications");
+export const deleteNotification = (id) => api.delete(`/notifications/${id}`);
+
 export default api;
