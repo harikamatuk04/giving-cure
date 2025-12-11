@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const NotificationSchema = new mongoose.Schema({
-  type: { type: String, required: true, enum: ["request_added", "request_modified"] },
+  type: { type: String, required: true, enum: ["request_added", "request_modified", "potential_match"] },
   requestId: { type: String, required: true },
   hospital: { type: String, required: true },
   city: { type: String, required: true },

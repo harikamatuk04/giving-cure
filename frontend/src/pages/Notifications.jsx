@@ -49,6 +49,11 @@ export default function Notifications() {
         border: "border-l-4 border-l-yellow-500",
         badge: "bg-gray-100 text-gray-600",
         badgeText: "Modified"
+      },
+      potential_match: {
+        border: "border-l-4 border-l-blue-500",
+        badge: "bg-blue-100 text-blue-700",
+        badgeText: "Potential Match"
       }
     };
 

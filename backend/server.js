@@ -14,8 +14,20 @@ app.use(express.json());
 // Connect to MongoDB
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.log(err));
+  .then(() => console.log("MongoDB connected successfully"))
+  .catch((err) => {
+    console.error("MongoDB connection error:", err.message);
+    console.error("Please ensure MongoDB is running and MONGO_URI is correct");
+  });
+
+// Handle connection events
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('MongoDB disconnected');
+});
 
 // Routes
 app.use("/api/inventory", inventoryRoutes);
@@ -27,9 +39,20 @@ app.get("/api/view", async (req, res) => {
   try {
     const Inventory = require("./models/Inventory");
     const Request = require("./models/Request");
+    const Notification = require("./models/Notification");
     const inventories = await Inventory.find();
     const requests = await Request.find();
-    res.json({ inventories, requests });
+    const notifications = await Notification.find();
+    res.json({ 
+      inventories, 
+      requests, 
+      notifications,
+      summary: {
+        totalInventories: inventories.length,
+        totalRequests: requests.length,
+        totalNotifications: notifications.length
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

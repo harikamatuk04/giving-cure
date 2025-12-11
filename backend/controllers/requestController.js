@@ -1,5 +1,6 @@
 const Request = require("../models/Request");
 const Notification = require("../models/Notification");
+const { checkAndCreateMatchNotifications } = require("../utils/matchHelper");
 
 // GET ALL REQUESTS
 exports.getRequests = async (req, res) => {
@@ -30,6 +31,9 @@ exports.addRequest = async (req, res) => {
       urgency: req.body.urgency,
       message: message
     });
+    
+    // Check for potential matches after creating request
+    await checkAndCreateMatchNotifications();
     
     res.json(newRequest);
   } catch (error) {

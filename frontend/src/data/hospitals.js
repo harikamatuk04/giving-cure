@@ -1,6 +1,6 @@
 export const HOSPITALS = [
   {
-    name: "OSF Hospital",
+    name: "OSF",
     city: "Champaign"
   },
   {
@@ -8,7 +8,7 @@ export const HOSPITALS = [
     city: "Champaign"
   },
   {
-    name: "Northwestern",
+    name: "Rush University Medical Center" ,
     city: "Chicago"
   }
 ];

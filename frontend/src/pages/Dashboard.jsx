@@ -74,7 +74,8 @@ export default function Dashboard() {
   });
 
   // Grouping and sorting state
-  const [groupBy, setGroupBy] = useState("hospital"); // "hospital", "city", "item"
+  const [inventoryGroupBy, setInventoryGroupBy] = useState("hospital"); // "hospital", "city", "item", "none"
+  const [requestGroupBy, setRequestGroupBy] = useState("hospital"); // "hospital", "city", "item", "none"
   const [sortByExpiry, setSortByExpiry] = useState(false);
 
   // Handle hospital selection - auto-populate city
@@ -133,17 +134,24 @@ export default function Dashboard() {
     }
 
     try {
-      const response = await addInventory(newInventory);
+      // Convert qty to number before sending
+      const inventoryData = {
+        ...newInventory,
+        qty: Number(newInventory.qty)
+      };
+      const response = await addInventory(inventoryData);
       setShowAddInventory(false);
       setNewInventory({ org: "", city: "", item: "", qty: "", expiry: "" });
       loadData();
     } catch (error) {
       console.error("Error adding inventory:", error);
-      const errorMessage = error.response?.data?.error || error.message || "Unknown error";
-      if (errorMessage.includes("MongoDB") || errorMessage.includes("buffering")) {
-        alert("Database connection error. Please ensure MongoDB is running.");
+      const errorDetails = error.response?.data?.details || error.response?.data?.error || error.message || "Unknown error";
+      if (errorDetails.includes("MongoDB") || errorDetails.includes("buffering") || errorDetails.includes("connection")) {
+        alert("Database connection error. Please ensure MongoDB is running and MONGO_URI is set correctly.");
+      } else if (errorDetails.includes("validation") || errorDetails.includes("required")) {
+        alert(`Validation error: ${errorDetails}`);
       } else {
-        alert(`Failed to add inventory: ${errorMessage}`);
+        alert(`Failed to add inventory: ${errorDetails}`);
       }
     }
   };
@@ -159,7 +167,12 @@ export default function Dashboard() {
     }
 
     try {
-      const response = await addRequest(newRequest);
+      // Convert qty to number before sending
+      const requestData = {
+        ...newRequest,
+        qty: Number(newRequest.qty)
+      };
+      const response = await addRequest(requestData);
       setShowAddRequest(false);
       setNewRequest({ org: "", city: "", item: "", qty: "", urgency: "" });
       loadData();
@@ -203,7 +216,12 @@ export default function Dashboard() {
       return;
     }
 
-    await updateInventory(editItem._id, editItem);
+    // Convert qty to number before sending
+    const inventoryData = {
+      ...editItem,
+      qty: Number(editItem.qty)
+    };
+    await updateInventory(editItem._id, inventoryData);
     setEditItem(null);
     loadData();
   };
@@ -217,9 +235,38 @@ export default function Dashboard() {
       return;
     }
 
-    await updateRequest(editRequest._id, editRequest);
+    // Convert qty to number before sending
+    const requestData = {
+      ...editRequest,
+      qty: Number(editRequest.qty)
+    };
+    await updateRequest(editRequest._id, requestData);
     setEditRequest(null);
     loadData();
+  };
+
+  // --------- MATCHING LOGIC ----------
+  const calculatePotentialMatches = () => {
+    let matchCount = 0;
+    
+    // For each request, check if there's a matching inventory item
+    requests.forEach((request) => {
+      // Find inventory items that match the request
+      const matchingInventories = inventories.filter((inventory) => {
+        // Item type must match
+        const itemMatches = inventory.item === request.item;
+        // Inventory quantity must be >= request quantity
+        const quantityMatches = inventory.qty >= request.qty;
+        return itemMatches && quantityMatches;
+      });
+      
+      // If we found at least one matching inventory, count it as a potential match
+      if (matchingInventories.length > 0) {
+        matchCount++;
+      }
+    });
+    
+    return matchCount;
   };
 
   // --------- GROUPING AND SORTING LOGIC ----------
@@ -241,14 +288,19 @@ export default function Dashboard() {
   const getGroupedInventories = () => {
     const processed = getProcessedInventories();
 
+    // If no grouping, return items in original order
+    if (inventoryGroupBy === "none") {
+      return { "All Items": processed };
+    }
+
     const grouped = {};
     processed.forEach((item) => {
       let key;
-      if (groupBy === "hospital") {
+      if (inventoryGroupBy === "hospital") {
         key = item.org;
-      } else if (groupBy === "city") {
+      } else if (inventoryGroupBy === "city") {
         key = item.city;
-      } else if (groupBy === "item") {
+      } else if (inventoryGroupBy === "item") {
         key = item.item;
       } else {
         key = item.org; // Default to hospital if somehow invalid
@@ -258,6 +310,41 @@ export default function Dashboard() {
         grouped[key] = [];
       }
       grouped[key].push(item);
+    });
+
+    // Sort group keys alphabetically
+    const sortedKeys = Object.keys(grouped).sort();
+    const sortedGroups = {};
+    sortedKeys.forEach((key) => {
+      sortedGroups[key] = grouped[key];
+    });
+
+    return sortedGroups;
+  };
+
+  const getGroupedRequests = () => {
+    // If no grouping, return requests in original order
+    if (requestGroupBy === "none") {
+      return { "All Requests": requests };
+    }
+
+    const grouped = {};
+    requests.forEach((request) => {
+      let key;
+      if (requestGroupBy === "hospital") {
+        key = request.org;
+      } else if (requestGroupBy === "city") {
+        key = request.city;
+      } else if (requestGroupBy === "item") {
+        key = request.item;
+      } else {
+        key = request.org; // Default to hospital if somehow invalid
+      }
+
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(request);
     });
 
     // Sort group keys alphabetically
@@ -296,7 +383,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Stat label="Donor Listings" value={inventories.length} />
           <Stat label="Open Requests" value={requests.length} />
-          <Stat label="Potential Matches" value={Math.min(inventories.length, requests.length)} />
+          <Stat label="Potential Matches" value={calculatePotentialMatches()} />
         </div>
       </Card>
 
@@ -308,9 +395,10 @@ export default function Dashboard() {
             <label className="text-sm font-medium text-gray-700">Group by:</label>
             <select
               className="border p-2 rounded-lg text-sm"
-              value={groupBy}
-              onChange={(e) => setGroupBy(e.target.value)}
+              value={inventoryGroupBy}
+              onChange={(e) => setInventoryGroupBy(e.target.value)}
             >
+              <option value="none">None</option>
               <option value="hospital">Hospital</option>
               <option value="city">City</option>
               <option value="item">Item</option>
@@ -330,13 +418,23 @@ export default function Dashboard() {
         {/* Grouped Inventory Display */}
         {Object.entries(getGroupedInventories()).map(([groupKey, groupItems]) => (
           <div key={groupKey} className="mb-6">
-            <h4 className="text-md font-semibold mb-2 text-indigo-700">
-              {groupBy === "hospital" && "🏥 "}
-              {groupBy === "city" && "📍 "}
-              {groupBy === "item" && "📦 "}
-              {groupKey} ({groupItems.length} {groupItems.length === 1 ? "item" : "items"})
-            </h4>
-            <table className="min-w-full text-sm">
+            {inventoryGroupBy !== "none" && (
+              <h4 className="text-md font-semibold mb-2 text-indigo-700">
+                {inventoryGroupBy === "hospital" && "🏥 "}
+                {inventoryGroupBy === "city" && "📍 "}
+                {inventoryGroupBy === "item" && "📦 "}
+                {groupKey} ({groupItems.length} {groupItems.length === 1 ? "item" : "items"})
+              </h4>
+            )}
+            <table className="min-w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-[18%]" />
+                <col className="w-[15%]" />
+                <col className="w-[30%]" />
+                <col className="w-[8%]" />
+                <col className="w-[12%]" />
+                <col className="w-[17%]" />
+              </colgroup>
               <thead className="bg-gray-100">
                 <tr>
                   <th className="p-2 text-center">Hospital</th>
@@ -371,33 +469,73 @@ export default function Dashboard() {
 
       {/* REQUEST TABLE */}
       <Card title="Requests">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="p-2 text-left">Hospital</th>
-              <th className="p-2 text-left">City</th>
-              <th className="p-2 text-left">Item</th>
-              <th className="p-2 text-left">Qty</th>
-              <th className="p-2 text-left">Urgency</th>
-              <th className="p-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map((r) => (
-              <tr key={r._id} className="border-b">
-                <td className="p-2">{r.org}</td>
-                <td className="p-2">{r.city}</td>
-                <td className="p-2">{r.item}</td>
-                <td className="p-2">{r.qty}</td>
-                <td className="p-2">{r.urgency}</td>
-                <td className="p-2 flex gap-3">
-                  <button className="text-blue-600" onClick={() => setEditRequest(r)}>Edit</button>
-                  <button className="text-red-600" onClick={() => handleDeleteRequest(r._id)}>Delete</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* Grouping Controls */}
+        <div className="mb-4 flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Group by:</label>
+            <select
+              className="border p-2 rounded-lg text-sm"
+              value={requestGroupBy}
+              onChange={(e) => setRequestGroupBy(e.target.value)}
+            >
+              <option value="none">None</option>
+              <option value="hospital">Hospital</option>
+              <option value="city">City</option>
+              <option value="item">Item</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Grouped Requests Display */}
+        {Object.entries(getGroupedRequests()).map(([groupKey, groupRequests]) => (
+          <div key={groupKey} className="mb-6">
+            {requestGroupBy !== "none" && (
+              <h4 className="text-md font-semibold mb-2 text-green-700">
+                {requestGroupBy === "hospital" && "🏥 "}
+                {requestGroupBy === "city" && "📍 "}
+                {requestGroupBy === "item" && "📦 "}
+                {groupKey} ({groupRequests.length} {groupRequests.length === 1 ? "request" : "requests"})
+              </h4>
+            )}
+            <table className="min-w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-[18%]" />
+                <col className="w-[15%]" />
+                <col className="w-[30%]" />
+                <col className="w-[8%]" />
+                <col className="w-[12%]" />
+                <col className="w-[17%]" />
+              </colgroup>
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 text-center">Hospital</th>
+                  <th className="p-2 text-center">City</th>
+                  <th className="p-2 text-center">Item</th>
+                  <th className="p-2 text-center">Qty</th>
+                  <th className="p-2 text-center">Urgency</th>
+                  <th className="p-2 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupRequests.map((r) => (
+                  <tr key={r._id} className="border-b">
+                    <td className="p-2 text-center">{r.org}</td>
+                    <td className="p-2 text-center">{r.city}</td>
+                    <td className="p-2 text-center">{r.item}</td>
+                    <td className="p-2 text-center">{r.qty}</td>
+                    <td className="p-2 text-center">{r.urgency}</td>
+                    <td className="p-2 text-center">
+                      <div className="flex gap-3 justify-center">
+                        <button className="text-blue-600" onClick={() => setEditRequest(r)}>Edit</button>
+                        <button className="text-red-600" onClick={() => handleDeleteRequest(r._id)}>Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </Card>
 
       {/* ---------- MODALS ---------- */}
