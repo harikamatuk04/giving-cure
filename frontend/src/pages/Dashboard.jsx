@@ -11,6 +11,7 @@ import {
 } from "../api/api";
 
 import { ITEM_OPTIONS } from "../data/items";
+import { HOSPITALS, getCityByHospital } from "../data/hospitals";
 
 // ---------- UI COMPONENTS ----------
 function Card({ title, children }) {
@@ -45,6 +46,7 @@ function Modal({ title, children, onClose }) {
   );
 }
 
+
 // ---------- MAIN DASHBOARD ----------
 export default function Dashboard() {
   const [inventories, setInventories] = useState([]);
@@ -70,6 +72,16 @@ export default function Dashboard() {
     qty: "",
     urgency: "",
   });
+
+  // Handle hospital selection - auto-populate city
+  const handleHospitalChange = (hospitalName, isInventory = true) => {
+    const city = getCityByHospital(hospitalName);
+    if (isInventory) {
+      setNewInventory({ ...newInventory, org: hospitalName, city });
+    } else {
+      setNewRequest({ ...newRequest, org: hospitalName, city });
+    }
+  };
 
   // --------- LOAD DATA ----------
   const loadData = async () => {
@@ -182,7 +194,7 @@ export default function Dashboard() {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-100">
             <tr>
-              <th className="p-2 text-left">Org</th>
+              <th className="p-2 text-left">Hospital</th>
               <th className="p-2 text-left">City</th>
               <th className="p-2 text-left">Item</th>
               <th className="p-2 text-left">Qty</th>
@@ -213,7 +225,7 @@ export default function Dashboard() {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-100">
             <tr>
-              <th className="p-2 text-left">Org</th>
+              <th className="p-2 text-left">Hospital</th>
               <th className="p-2 text-left">City</th>
               <th className="p-2 text-left">Item</th>
               <th className="p-2 text-left">Qty</th>
@@ -246,15 +258,15 @@ export default function Dashboard() {
         <Modal title="Add Inventory" onClose={() => setShowAddInventory(false)}>
           <form onSubmit={handleAddInventory} className="space-y-3">
             
-            <input className="border p-2 w-full" required placeholder="Organization"
+            <select className="border p-2 w-full" required
               value={newInventory.org}
-              onChange={(e) => setNewInventory({ ...newInventory, org: e.target.value })}
-            />
-
-            <input className="border p-2 w-full" required placeholder="City"
-              value={newInventory.city}
-              onChange={(e) => setNewInventory({ ...newInventory, city: e.target.value })}
-            />
+              onChange={(e) => handleHospitalChange(e.target.value, true)}
+            >
+              <option value="">Select Hospital</option>
+              {HOSPITALS.map((hospital) => (
+                <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
+              ))}
+            </select>
 
             <select className="border p-2 w-full" required
               value={newInventory.item}
@@ -286,15 +298,15 @@ export default function Dashboard() {
         <Modal title="Add Request" onClose={() => setShowAddRequest(false)}>
           <form onSubmit={handleAddRequest} className="space-y-3">
 
-            <input className="border p-2 w-full" required placeholder="Organization"
+            <select className="border p-2 w-full" required
               value={newRequest.org}
-              onChange={(e) => setNewRequest({ ...newRequest, org: e.target.value })}
-            />
-
-            <input className="border p-2 w-full" required placeholder="City"
-              value={newRequest.city}
-              onChange={(e) => setNewRequest({ ...newRequest, city: e.target.value })}
-            />
+              onChange={(e) => handleHospitalChange(e.target.value, false)}
+            >
+              <option value="">Select Hospital</option>
+              {HOSPITALS.map((hospital) => (
+                <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
+              ))}
+            </select>
 
             <select className="border p-2 w-full" required
               value={newRequest.item}
@@ -331,14 +343,25 @@ export default function Dashboard() {
         <Modal title="Edit Inventory" onClose={() => setEditItem(null)}>
           <form onSubmit={handleUpdateInventory} className="space-y-3">
 
-            <input className="border p-2 w-full" required
+            <select className="border p-2 w-full" required
               value={editItem.org}
-              onChange={(e) => setEditItem({ ...editItem, org: e.target.value })}
-            />
+              onChange={(e) => {
+                const city = getCityByHospital(e.target.value);
+                setEditItem({ ...editItem, org: e.target.value, city });
+              }}
+            >
+              <option value="">Select Hospital</option>
+              {HOSPITALS.map((hospital) => (
+                <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
+              ))}
+            </select>
 
-            <input className="border p-2 w-full" required
+            <input 
+              type="text" 
+              className="border p-2 w-full bg-gray-100" 
+              readOnly
+              placeholder="City (auto-populated)"
               value={editItem.city}
-              onChange={(e) => setEditItem({ ...editItem, city: e.target.value })}
             />
 
             <select className="border p-2 w-full" required
@@ -373,14 +396,25 @@ export default function Dashboard() {
         <Modal title="Edit Request" onClose={() => setEditRequest(null)}>
           <form onSubmit={handleUpdateRequest} className="space-y-3">
 
-            <input className="border p-2 w-full" required
+            <select className="border p-2 w-full" required
               value={editRequest.org}
-              onChange={(e) => setEditRequest({ ...editRequest, org: e.target.value })}
-            />
+              onChange={(e) => {
+                const city = getCityByHospital(e.target.value);
+                setEditRequest({ ...editRequest, org: e.target.value, city });
+              }}
+            >
+              <option value="">Select Hospital</option>
+              {HOSPITALS.map((hospital) => (
+                <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
+              ))}
+            </select>
 
-            <input className="border p-2 w-full" required
+            <input 
+              type="text" 
+              className="border p-2 w-full bg-gray-100" 
+              readOnly
+              placeholder="City (auto-populated)"
               value={editRequest.city}
-              onChange={(e) => setEditRequest({ ...editRequest, city: e.target.value })}
             />
 
             <select className="border p-2 w-full" required
