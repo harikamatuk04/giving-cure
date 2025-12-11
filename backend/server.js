@@ -20,5 +20,18 @@ mongoose
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/requests", requestRoutes);
 
-const PORT = 5000;
+// Simple data viewer endpoint (for development)
+app.get("/api/view", async (req, res) => {
+  try {
+    const Inventory = require("./models/Inventory");
+    const Request = require("./models/Request");
+    const inventories = await Inventory.find();
+    const requests = await Request.find();
+    res.json({ inventories, requests });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
