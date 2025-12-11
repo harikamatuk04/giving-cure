@@ -38,18 +38,16 @@ export default function Notifications() {
   };
 
   const getNotificationColors = (type, urgency) => {
-    // Base colors for notification type
+    // Base colors for notification type - only left border, no background
     const typeColors = {
       request_added: {
         border: "border-l-4 border-l-green-500",
-        bg: "bg-green-50",
-        badge: "bg-green-100 text-green-800",
+        badge: "bg-gray-100 text-gray-600",
         badgeText: "New Request"
       },
       request_modified: {
-        border: "border-l-4 border-l-orange-500",
-        bg: "bg-orange-50",
-        badge: "bg-orange-100 text-orange-800",
+        border: "border-l-4 border-l-yellow-500",
+        badge: "bg-gray-100 text-gray-600",
         badgeText: "Modified"
       }
     };
@@ -97,12 +95,12 @@ export default function Notifications() {
               return (
                 <li 
                   key={n._id} 
-                  className={`${colors.border} ${colors.bg} rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow`}
+                  className={`${colors.border} bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow`}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className={`${colors.badge} px-2 py-1 rounded text-xs font-semibold`}>
+                        <span className={`${colors.badge} px-2 py-1 rounded text-xs`}>
                           {colors.badgeText}
                         </span>
                         {n.urgency && (

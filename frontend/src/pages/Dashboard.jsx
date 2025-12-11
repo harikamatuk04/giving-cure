@@ -97,9 +97,41 @@ export default function Dashboard() {
 
   useEffect(() => { loadData(); }, []);
 
+  // --------- VALIDATION HELPERS ----------
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
+  };
+
+  const validateQuantity = (qty) => {
+    const numQty = Number(qty);
+    return !isNaN(numQty) && numQty > 0;
+  };
+
+  const validateExpiryDate = (expiry) => {
+    if (!expiry) return false;
+    const expiryDate = new Date(expiry);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to compare dates only
+    return expiryDate >= today;
+  };
+
   // --------- ADD NEW INVENTORY ----------
   const handleAddInventory = async (e) => {
     e.preventDefault();
+    
+    // Validate quantity
+    if (!validateQuantity(newInventory.qty)) {
+      alert("Quantity must be a positive number greater than 0.");
+      return;
+    }
+
+    // Validate expiry date
+    if (!validateExpiryDate(newInventory.expiry)) {
+      alert("Expiry date cannot be in the past. Please select today or a future date.");
+      return;
+    }
+
     try {
       const response = await addInventory(newInventory);
       setShowAddInventory(false);
@@ -119,6 +151,13 @@ export default function Dashboard() {
   // --------- ADD NEW REQUEST ----------
   const handleAddRequest = async (e) => {
     e.preventDefault();
+    
+    // Validate quantity
+    if (!validateQuantity(newRequest.qty)) {
+      alert("Quantity must be a positive number greater than 0.");
+      return;
+    }
+
     try {
       const response = await addRequest(newRequest);
       setShowAddRequest(false);
@@ -151,6 +190,19 @@ export default function Dashboard() {
   // --------- UPDATE ----------
   const handleUpdateInventory = async (e) => {
     e.preventDefault();
+    
+    // Validate quantity
+    if (!validateQuantity(editItem.qty)) {
+      alert("Quantity must be a positive number greater than 0.");
+      return;
+    }
+
+    // Validate expiry date
+    if (!validateExpiryDate(editItem.expiry)) {
+      alert("Expiry date cannot be in the past. Please select today or a future date.");
+      return;
+    }
+
     await updateInventory(editItem._id, editItem);
     setEditItem(null);
     loadData();
@@ -158,6 +210,13 @@ export default function Dashboard() {
 
   const handleUpdateRequest = async (e) => {
     e.preventDefault();
+    
+    // Validate quantity
+    if (!validateQuantity(editRequest.qty)) {
+      alert("Quantity must be a positive number greater than 0.");
+      return;
+    }
+
     await updateRequest(editRequest._id, editRequest);
     setEditRequest(null);
     loadData();
@@ -368,12 +427,12 @@ export default function Dashboard() {
               ))}
             </select>
 
-            <input type="number" className="border p-2 w-full" required placeholder="Quantity"
+            <input type="number" className="border p-2 w-full" required placeholder="Quantity" min="1"
               value={newInventory.qty}
               onChange={(e) => setNewInventory({ ...newInventory, qty: e.target.value })}
             />
 
-            <input type="date" className="border p-2 w-full" required
+            <input type="date" className="border p-2 w-full" required min={getTodayDate()}
               value={newInventory.expiry}
               onChange={(e) => setNewInventory({ ...newInventory, expiry: e.target.value })}
             />
@@ -408,7 +467,7 @@ export default function Dashboard() {
               ))}
             </select>
 
-            <input type="number" className="border p-2 w-full" required placeholder="Quantity"
+            <input type="number" className="border p-2 w-full" required placeholder="Quantity" min="1"
               value={newRequest.qty}
               onChange={(e) => setNewRequest({ ...newRequest, qty: e.target.value })}
             />
@@ -463,12 +522,12 @@ export default function Dashboard() {
               ))}
             </select>
 
-            <input type="number" className="border p-2 w-full" required
+            <input type="number" className="border p-2 w-full" required min="1"
               value={editItem.qty}
               onChange={(e) => setEditItem({ ...editItem, qty: e.target.value })}
             />
 
-            <input type="date" className="border p-2 w-full" required
+            <input type="date" className="border p-2 w-full" required min={getTodayDate()}
               value={editItem.expiry}
               onChange={(e) => setEditItem({ ...editItem, expiry: e.target.value })}
             />
@@ -516,7 +575,7 @@ export default function Dashboard() {
               ))}
             </select>
 
-            <input type="number" className="border p-2 w-full" required
+            <input type="number" className="border p-2 w-full" required min="1"
               value={editRequest.qty}
               onChange={(e) => setEditRequest({ ...editRequest, qty: e.target.value })}
             />
