@@ -1,12 +1,21 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
+import {
+  getInventory,
+  addInventory,
+  deleteInventory,
+  updateInventory,
+  getRequests,
+  addRequest,
+  deleteRequest,
+  updateRequest,
+} from "../api/api";
 
-// helpers
-const uid = () => Math.random().toString(36).slice(2, 9);
-const todayISO = () => new Date().toISOString().slice(0, 10);
+import { ITEM_OPTIONS } from "../data/items";
 
+// ---------- UI COMPONENTS ----------
 function Card({ title, children }) {
   return (
-    <div className="rounded-3xl border border-gray-200 shadow-sm p-5 bg-white">
+    <div className="rounded-2xl border p-5 bg-white shadow">
       <h3 className="text-lg font-semibold mb-3">{title}</h3>
       {children}
     </div>
@@ -15,251 +24,376 @@ function Card({ title, children }) {
 
 function Stat({ label, value }) {
   return (
-    <div className="rounded-2xl border p-4 bg-white text-center">
-      <div className="text-2xl font-semibold">{value}</div>
-      <div className="text-gray-600 text-sm">{label}</div>
+    <div className="rounded-xl border p-4 bg-white text-center shadow-sm">
+      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-gray-500 text-sm">{label}</div>
     </div>
   );
 }
 
-function Table({ cols, rows }) {
+function Modal({ title, children, onClose }) {
   return (
-    <div className="overflow-auto rounded-2xl border border-gray-200">
-      <table className="min-w-full text-sm">
-        <thead className="bg-gray-50">
-          <tr>
-            {cols.map((c) => (
-              <th key={c} className="text-left font-semibold p-3 text-gray-700">
-                {c}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id} className="odd:bg-white even:bg-gray-50">
-              {cols.map((c) => (
-                <td key={c} className="p-3">
-                  {r[c]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
+      <div className="bg-white rounded-xl p-6 w-96 shadow-lg space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <button className="text-red-500" onClick={onClose}>✕</button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
 
+// ---------- MAIN DASHBOARD ----------
 export default function Dashboard() {
-  const [inventories, setInventories] = useState([
-    { id: uid(), org: "Northwestern Memorial", city: "Chicago, IL", item: "N95 Masks", qty: 1200, expiry: "2026-01-01" },
-    { id: uid(), org: "Rush University Medical Center", city: "Chicago, IL", item: "IV Sets", qty: 200, expiry: "2025-12-01" },
-    { id: uid(), org: "UI Health", city: "Chicago, IL", item: "Gloves", qty: 5000, expiry: "2027-06-01" },
-  ]);
+  const [inventories, setInventories] = useState([]);
+  const [requests, setRequests] = useState([]);
 
-  const [requests, setRequests] = useState([
-    { id: uid(), org: "Carle Hospital", city: "Urbana, IL", item: "N95 Masks", qty: 800, urgency: "High" },
-    { id: uid(), org: "OSF Heart of Mary", city: "Urbana, IL", item: "IV Sets", qty: 50, urgency: "Normal" },
-  ]);
-
-  // show/hide forms
   const [showAddInventory, setShowAddInventory] = useState(false);
-  const [showRequestItem, setShowRequestItem] = useState(false);
+  const [showAddRequest, setShowAddRequest] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [editRequest, setEditRequest] = useState(null);
 
-  // form input states
-  const [newItem, setNewItem] = useState({ item: "", qty: "", expiry: todayISO() });
-  const [newRequest, setNewRequest] = useState({ item: "", qty: "", urgency: "" });
+  const [newInventory, setNewInventory] = useState({
+    org: "",
+    city: "",
+    item: "",
+    qty: "",
+    expiry: "",
+  });
 
-  // match data for table
-  const matches = useMemo(
-    () =>
-      inventories.slice(0, 2).map((i, idx) => ({
-        id: uid(),
-        Item: i.item,
-        Qty: requests[idx]?.qty ?? 0,
-        FromOrg: i.org,
-        FromCity: i.city,
-        ToOrg: requests[idx]?.org ?? "-",
-        ToCity: requests[idx]?.city ?? "-",
-        Status: "Proposed",
-      })),
-    [inventories, requests]
-  );
+  const [newRequest, setNewRequest] = useState({
+    org: "",
+    city: "",
+    item: "",
+    qty: "",
+    urgency: "",
+  });
 
-  // handle adding new inventory
-  const handleAddInventory = () => {
-    setInventories([
-      ...inventories,
-      {
-        id: uid(),
-        org: "Your Hospital",
-        city: "Chicago, IL",
-        item: newItem.item,
-        qty: newItem.qty,
-        expiry: newItem.expiry,
-      },
-    ]);
-    setNewItem({ item: "", qty: "", expiry: todayISO() });
+  // --------- LOAD DATA ----------
+  const loadData = async () => {
+    const inv = await getInventory();
+    const req = await getRequests();
+    setInventories(inv.data);
+    setRequests(req.data);
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  // --------- ADD NEW INVENTORY ----------
+  const handleAddInventory = async (e) => {
+    e.preventDefault();
+    await addInventory(newInventory);
     setShowAddInventory(false);
+    setNewInventory({ org: "", city: "", item: "", qty: "", expiry: "" });
+    loadData();
   };
 
-  // handle adding new request
-  const handleAddRequest = () => {
-    setRequests([
-      ...requests,
-      {
-        id: uid(),
-        org: "Your Hospital",
-        city: "Chicago, IL",
-        item: newRequest.item,
-        qty: newRequest.qty,
-        urgency: newRequest.urgency,
-      },
-    ]);
-    setNewRequest({ item: "", qty: "", urgency: "" });
-    setShowRequestItem(false);
+  // --------- ADD NEW REQUEST ----------
+  const handleAddRequest = async (e) => {
+    e.preventDefault();
+    await addRequest(newRequest);
+    setShowAddRequest(false);
+    setNewRequest({ org: "", city: "", item: "", qty: "", urgency: "" });
+    loadData();
   };
 
+  // --------- DELETE ----------
+  const handleDeleteInventory = async (id) => {
+    if (!window.confirm("Delete this inventory?")) return;
+    await deleteInventory(id);
+    loadData();
+  };
+
+  const handleDeleteRequest = async (id) => {
+    if (!window.confirm("Delete this request?")) return;
+    await deleteRequest(id);
+    loadData();
+  };
+
+  // --------- UPDATE ----------
+  const handleUpdateInventory = async (e) => {
+    e.preventDefault();
+    await updateInventory(editItem._id, editItem);
+    setEditItem(null);
+    loadData();
+  };
+
+  const handleUpdateRequest = async (e) => {
+    e.preventDefault();
+    await updateRequest(editRequest._id, editRequest);
+    setEditRequest(null);
+    loadData();
+  };
+
+  // --------- UI ----------
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
-      {/* Top Buttons */}
-      <div className="flex justify-end gap-4">
+    <div className="max-w-6xl mx-auto p-8 space-y-8">
+
+      {/* TOP BUTTONS */}
+      <div className="flex gap-4">
         <button
-          onClick={() => setShowAddInventory(!showAddInventory)}
-          className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+          className="px-4 py-2 bg-indigo-600 text-white rounded-xl"
+          onClick={() => setShowAddInventory(true)}
         >
           + Add Inventory
         </button>
+
         <button
-          onClick={() => setShowRequestItem(!showRequestItem)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+          className="px-4 py-2 bg-green-600 text-white rounded-xl"
+          onClick={() => setShowAddRequest(true)}
         >
-          + Request Item
+          + Add Request
         </button>
       </div>
 
-      {/* Add Inventory Form */}
-      {showAddInventory && (
-        <Card title="Add Inventory Item">
-          <div className="grid md:grid-cols-3 gap-3">
-            <input
-              type="text"
-              placeholder="Item Name"
-              value={newItem.item}
-              onChange={(e) => setNewItem({ ...newItem, item: e.target.value })}
-              className="border rounded-lg p-2"
-            />
-            <input
-              type="number"
-              placeholder="Quantity"
-              value={newItem.qty}
-              onChange={(e) => setNewItem({ ...newItem, qty: e.target.value })}
-              className="border rounded-lg p-2"
-            />
-            <input
-              type="date"
-              value={newItem.expiry}
-              onChange={(e) => setNewItem({ ...newItem, expiry: e.target.value })}
-              className="border rounded-lg p-2"
-            />
-          </div>
-          <div className="flex justify-end mt-4">
-            <button
-              onClick={handleAddInventory}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-            >
-              Submit
-            </button>
-          </div>
-        </Card>
-      )}
-
-      {/* Request Item Form */}
-      {showRequestItem && (
-        <Card title="Request Item">
-          <div className="grid md:grid-cols-3 gap-3">
-            <input
-              type="text"
-              placeholder="Item Name"
-              value={newRequest.item}
-              onChange={(e) => setNewRequest({ ...newRequest, item: e.target.value })}
-              className="border rounded-lg p-2"
-            />
-            <input
-              type="number"
-              placeholder="Quantity"
-              value={newRequest.qty}
-              onChange={(e) => setNewRequest({ ...newRequest, qty: e.target.value })}
-              className="border rounded-lg p-2"
-            />
-            <select
-              value={newRequest.urgency}
-              onChange={(e) => setNewRequest({ ...newRequest, urgency: e.target.value })}
-              className="border rounded-lg p-2"
-            >
-              <option value="">Select Urgency</option>
-              <option value="High">High</option>
-              <option value="Normal">Normal</option>
-            </select>
-          </div>
-          <div className="flex justify-end mt-4">
-            <button
-              onClick={handleAddRequest}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-            >
-              Submit
-            </button>
-          </div>
-        </Card>
-      )}
-
-      {/* Overview */}
+      {/* OVERVIEW */}
       <Card title="Overview">
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Stat label="Donor Listings" value={inventories.length} />
           <Stat label="Open Requests" value={requests.length} />
-          <Stat label="Proposed Matches" value={matches.length} />
+          <Stat label="Potential Matches" value={Math.min(inventories.length, requests.length)} />
         </div>
       </Card>
 
-      {/* Inventory Table */}
-      <Card title="All Inventory">
-        <Table
-          cols={["Org", "City", "Item", "Qty", "Expiry"]}
-          rows={inventories.map((i) => ({
-            id: i.id,
-            Org: i.org,
-            City: i.city,
-            Item: i.item,
-            Qty: i.qty,
-            Expiry: i.expiry,
-          }))}
-        />
+      {/* INVENTORY TABLE */}
+      <Card title="Inventory">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-2 text-left">Org</th>
+              <th className="p-2 text-left">City</th>
+              <th className="p-2 text-left">Item</th>
+              <th className="p-2 text-left">Qty</th>
+              <th className="p-2 text-left">Expiry</th>
+              <th className="p-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {inventories.map((i) => (
+              <tr key={i._id} className="border-b">
+                <td className="p-2">{i.org}</td>
+                <td className="p-2">{i.city}</td>
+                <td className="p-2">{i.item}</td>
+                <td className="p-2">{i.qty}</td>
+                <td className="p-2">{i.expiry}</td>
+                <td className="p-2 flex gap-3">
+                  <button className="text-blue-600" onClick={() => setEditItem(i)}>Edit</button>
+                  <button className="text-red-600" onClick={() => handleDeleteInventory(i._id)}>Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </Card>
 
-      {/* Requests Table */}
-      <Card title="All Requests">
-        <Table
-          cols={["Org", "City", "Item", "Qty", "Urgency"]}
-          rows={requests.map((r) => ({
-            id: r.id,
-            Org: r.org,
-            City: r.city,
-            Item: r.item,
-            Qty: r.qty,
-            Urgency: r.urgency,
-          }))}
-        />
+      {/* REQUEST TABLE */}
+      <Card title="Requests">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="p-2 text-left">Org</th>
+              <th className="p-2 text-left">City</th>
+              <th className="p-2 text-left">Item</th>
+              <th className="p-2 text-left">Qty</th>
+              <th className="p-2 text-left">Urgency</th>
+              <th className="p-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map((r) => (
+              <tr key={r._id} className="border-b">
+                <td className="p-2">{r.org}</td>
+                <td className="p-2">{r.city}</td>
+                <td className="p-2">{r.item}</td>
+                <td className="p-2">{r.qty}</td>
+                <td className="p-2">{r.urgency}</td>
+                <td className="p-2 flex gap-3">
+                  <button className="text-blue-600" onClick={() => setEditRequest(r)}>Edit</button>
+                  <button className="text-red-600" onClick={() => handleDeleteRequest(r._id)}>Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </Card>
 
-      {/* Matches Table */}
-      <Card title="Matches (Proposed)">
-        <Table
-          cols={["Item", "Qty", "FromOrg", "FromCity", "ToOrg", "ToCity", "Status"]}
-          rows={matches}
-        />
-      </Card>
+      {/* ---------- MODALS ---------- */}
+
+      {/* ADD INVENTORY */}
+      {showAddInventory && (
+        <Modal title="Add Inventory" onClose={() => setShowAddInventory(false)}>
+          <form onSubmit={handleAddInventory} className="space-y-3">
+            
+            <input className="border p-2 w-full" required placeholder="Organization"
+              value={newInventory.org}
+              onChange={(e) => setNewInventory({ ...newInventory, org: e.target.value })}
+            />
+
+            <input className="border p-2 w-full" required placeholder="City"
+              value={newInventory.city}
+              onChange={(e) => setNewInventory({ ...newInventory, city: e.target.value })}
+            />
+
+            <select className="border p-2 w-full" required
+              value={newInventory.item}
+              onChange={(e) => setNewInventory({ ...newInventory, item: e.target.value })}
+            >
+              <option value="">Select Item</option>
+              {ITEM_OPTIONS.map((name) => (
+                <option key={name}>{name}</option>
+              ))}
+            </select>
+
+            <input type="number" className="border p-2 w-full" required placeholder="Quantity"
+              value={newInventory.qty}
+              onChange={(e) => setNewInventory({ ...newInventory, qty: e.target.value })}
+            />
+
+            <input type="date" className="border p-2 w-full" required
+              value={newInventory.expiry}
+              onChange={(e) => setNewInventory({ ...newInventory, expiry: e.target.value })}
+            />
+
+            <button className="w-full bg-indigo-600 text-white py-2 rounded">Submit</button>
+          </form>
+        </Modal>
+      )}
+
+      {/* ADD REQUEST */}
+      {showAddRequest && (
+        <Modal title="Add Request" onClose={() => setShowAddRequest(false)}>
+          <form onSubmit={handleAddRequest} className="space-y-3">
+
+            <input className="border p-2 w-full" required placeholder="Organization"
+              value={newRequest.org}
+              onChange={(e) => setNewRequest({ ...newRequest, org: e.target.value })}
+            />
+
+            <input className="border p-2 w-full" required placeholder="City"
+              value={newRequest.city}
+              onChange={(e) => setNewRequest({ ...newRequest, city: e.target.value })}
+            />
+
+            <select className="border p-2 w-full" required
+              value={newRequest.item}
+              onChange={(e) => setNewRequest({ ...newRequest, item: e.target.value })}
+            >
+              <option value="">Select Item</option>
+              {ITEM_OPTIONS.map((name) => (
+                <option key={name}>{name}</option>
+              ))}
+            </select>
+
+            <input type="number" className="border p-2 w-full" required placeholder="Quantity"
+              value={newRequest.qty}
+              onChange={(e) => setNewRequest({ ...newRequest, qty: e.target.value })}
+            />
+
+            <select className="border p-2 w-full" required
+              value={newRequest.urgency}
+              onChange={(e) => setNewRequest({ ...newRequest, urgency: e.target.value })}
+            >
+              <option value="">Urgency</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+            </select>
+
+            <button className="w-full bg-green-600 text-white py-2 rounded">Submit</button>
+          </form>
+        </Modal>
+      )}
+
+      {/* EDIT INVENTORY */}
+      {editItem && (
+        <Modal title="Edit Inventory" onClose={() => setEditItem(null)}>
+          <form onSubmit={handleUpdateInventory} className="space-y-3">
+
+            <input className="border p-2 w-full" required
+              value={editItem.org}
+              onChange={(e) => setEditItem({ ...editItem, org: e.target.value })}
+            />
+
+            <input className="border p-2 w-full" required
+              value={editItem.city}
+              onChange={(e) => setEditItem({ ...editItem, city: e.target.value })}
+            />
+
+            <select className="border p-2 w-full" required
+              value={editItem.item}
+              onChange={(e) => setEditItem({ ...editItem, item: e.target.value })}
+            >
+              {ITEM_OPTIONS.map((name) => (
+                <option key={name}>{name}</option>
+              ))}
+            </select>
+
+            <input type="number" className="border p-2 w-full" required
+              value={editItem.qty}
+              onChange={(e) => setEditItem({ ...editItem, qty: e.target.value })}
+            />
+
+            <input type="date" className="border p-2 w-full" required
+              value={editItem.expiry}
+              onChange={(e) => setEditItem({ ...editItem, expiry: e.target.value })}
+            />
+
+            <button className="w-full bg-blue-600 text-white py-2 rounded">
+              Save Changes
+            </button>
+
+          </form>
+        </Modal>
+      )}
+
+      {/* EDIT REQUEST */}
+      {editRequest && (
+        <Modal title="Edit Request" onClose={() => setEditRequest(null)}>
+          <form onSubmit={handleUpdateRequest} className="space-y-3">
+
+            <input className="border p-2 w-full" required
+              value={editRequest.org}
+              onChange={(e) => setEditRequest({ ...editRequest, org: e.target.value })}
+            />
+
+            <input className="border p-2 w-full" required
+              value={editRequest.city}
+              onChange={(e) => setEditRequest({ ...editRequest, city: e.target.value })}
+            />
+
+            <select className="border p-2 w-full" required
+              value={editRequest.item}
+              onChange={(e) => setEditRequest({ ...editRequest, item: e.target.value })}
+            >
+              {ITEM_OPTIONS.map((name) => (
+                <option key={name}>{name}</option>
+              ))}
+            </select>
+
+            <input type="number" className="border p-2 w-full" required
+              value={editRequest.qty}
+              onChange={(e) => setEditRequest({ ...editRequest, qty: e.target.value })}
+            />
+
+            <select className="border p-2 w-full" required
+              value={editRequest.urgency}
+              onChange={(e) => setEditRequest({ ...editRequest, urgency: e.target.value })}
+            >
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+            </select>
+
+            <button className="w-full bg-blue-600 text-white py-2 rounded">
+              Save Changes
+            </button>
+
+          </form>
+        </Modal>
+      )}
+
     </div>
   );
 }
