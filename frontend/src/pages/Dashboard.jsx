@@ -77,6 +77,7 @@ export default function Dashboard() {
   const [inventoryGroupBy, setInventoryGroupBy] = useState("hospital"); // "hospital", "city", "item", "none"
   const [requestGroupBy, setRequestGroupBy] = useState("hospital"); // "hospital", "city", "item", "none"
   const [sortByExpiry, setSortByExpiry] = useState(false);
+  const [inventoryTab, setInventoryTab] = useState("active"); // "active" or "expired"
 
   // Handle hospital selection - auto-populate city
   const handleHospitalChange = (hospitalName, isInventory = true) => {
@@ -270,8 +271,28 @@ export default function Dashboard() {
   };
 
   // --------- GROUPING AND SORTING LOGIC ----------
+  const isExpired = (expiryDate) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time to compare dates only
+    const expiry = new Date(expiryDate);
+    return expiry < today;
+  };
+
+  const getFilteredInventories = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (inventoryTab === "expired") {
+      // Return only expired items
+      return inventories.filter(item => isExpired(item.expiry));
+    } else {
+      // Return only active (non-expired) items
+      return inventories.filter(item => !isExpired(item.expiry));
+    }
+  };
+
   const getProcessedInventories = () => {
-    let processed = [...inventories];
+    let processed = getFilteredInventories();
 
     // Sort by expiry if enabled
     if (sortByExpiry) {
@@ -389,6 +410,32 @@ export default function Dashboard() {
 
       {/* INVENTORY TABLE */}
       <Card title="Inventory">
+        {/* Tabs */}
+        <div className="mb-4 border-b border-gray-200">
+          <div className="flex gap-1">
+            <button
+              onClick={() => setInventoryTab("active")}
+              className={`px-4 py-2 font-medium text-sm transition-colors ${
+                inventoryTab === "active"
+                  ? "text-indigo-600 border-b-2 border-indigo-600"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Active ({inventories.filter(item => !isExpired(item.expiry)).length})
+            </button>
+            <button
+              onClick={() => setInventoryTab("expired")}
+              className={`px-4 py-2 font-medium text-sm transition-colors ${
+                inventoryTab === "expired"
+                  ? "text-red-600 border-b-2 border-red-600"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Expired ({inventories.filter(item => isExpired(item.expiry)).length})
+            </button>
+          </div>
+        </div>
+
         {/* Grouping and Sorting Controls */}
         <div className="mb-4 flex flex-wrap gap-4 items-center">
           <div className="flex items-center gap-2">
@@ -404,22 +451,31 @@ export default function Dashboard() {
               <option value="item">Item</option>
             </select>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Sort by expiry:</label>
-            <input
-              type="checkbox"
-              checked={sortByExpiry}
-              onChange={(e) => setSortByExpiry(e.target.checked)}
-              className="w-4 h-4"
-            />
-          </div>
+          {inventoryTab === "active" && (
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Sort by expiry:</label>
+              <input
+                type="checkbox"
+                checked={sortByExpiry}
+                onChange={(e) => setSortByExpiry(e.target.checked)}
+                className="w-4 h-4"
+              />
+            </div>
+          )}
         </div>
 
         {/* Grouped Inventory Display */}
-        {Object.entries(getGroupedInventories()).map(([groupKey, groupItems]) => (
+        {Object.keys(getGroupedInventories()).length === 0 ? (
+          <div className="text-center text-gray-500 py-8">
+            {inventoryTab === "expired" 
+              ? "No expired inventory items." 
+              : "No active inventory items."}
+          </div>
+        ) : (
+          Object.entries(getGroupedInventories()).map(([groupKey, groupItems]) => (
           <div key={groupKey} className="mb-6">
             {inventoryGroupBy !== "none" && (
-              <h4 className="text-md font-semibold mb-2 text-indigo-700">
+              <h4 className={`text-md font-semibold mb-2 ${inventoryTab === "expired" ? "text-red-700" : "text-indigo-700"}`}>
                 {inventoryGroupBy === "hospital" && "🏥 "}
                 {inventoryGroupBy === "city" && "📍 "}
                 {inventoryGroupBy === "item" && "📦 "}
@@ -447,12 +503,14 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {groupItems.map((i) => (
-                  <tr key={i._id} className="border-b">
+                  <tr key={i._id} className={`border-b ${inventoryTab === "expired" ? "bg-red-50" : ""}`}>
                     <td className="p-2 text-center">{i.org}</td>
                     <td className="p-2 text-center">{i.city}</td>
                     <td className="p-2 text-center">{i.item}</td>
                     <td className="p-2 text-center">{i.qty}</td>
-                    <td className="p-2 text-center">{i.expiry}</td>
+                    <td className={`p-2 text-center ${inventoryTab === "expired" ? "text-red-600 font-semibold" : ""}`}>
+                      {i.expiry}
+                    </td>
                     <td className="p-2 text-center">
                       <div className="flex gap-3 justify-center">
                         <button className="text-blue-600" onClick={() => setEditItem(i)}>Edit</button>
@@ -464,7 +522,8 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
-        ))}
+          ))
+        )}
       </Card>
 
       {/* REQUEST TABLE */}
@@ -545,35 +604,48 @@ export default function Dashboard() {
         <Modal title="Add Inventory" onClose={() => setShowAddInventory(false)}>
           <form onSubmit={handleAddInventory} className="space-y-3">
             
-            <select className="border p-2 w-full" required
-              value={newInventory.org}
-              onChange={(e) => handleHospitalChange(e.target.value, true)}
-            >
-              <option value="">Select Hospital</option>
-              {HOSPITALS.map((hospital) => (
-                <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
-              ))}
-            </select>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hospital</label>
+              <select className="border p-2 w-full" required
+                value={newInventory.org}
+                onChange={(e) => handleHospitalChange(e.target.value, true)}
+              >
+                <option value="">Select Hospital</option>
+                {HOSPITALS.filter(hospital => hospital.name === "Rush University Medical Center").map((hospital) => (
+                  <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
+                ))}
+              </select>
+            </div>
 
-            <select className="border p-2 w-full" required
-              value={newInventory.item}
-              onChange={(e) => setNewInventory({ ...newInventory, item: e.target.value })}
-            >
-              <option value="">Select Item</option>
-              {ITEM_OPTIONS.map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </select>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Item</label>
+              <select className="border p-2 w-full" required
+                value={newInventory.item}
+                onChange={(e) => setNewInventory({ ...newInventory, item: e.target.value })}
+              >
+                <option value="">Select Item</option>
+                {ITEM_OPTIONS.map((name) => (
+                  <option key={name}>{name}</option>
+                ))}
+              </select>
+            </div>
 
-            <input type="number" className="border p-2 w-full" required placeholder="Quantity" min="1"
-              value={newInventory.qty}
-              onChange={(e) => setNewInventory({ ...newInventory, qty: e.target.value })}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+              <input type="number" className="border p-2 w-full" required placeholder="Enter quantity" min="1"
+                value={newInventory.qty}
+                onChange={(e) => setNewInventory({ ...newInventory, qty: e.target.value })}
+              />
+            </div>
 
-            <input type="date" className="border p-2 w-full" required min={getTodayDate()}
-              value={newInventory.expiry}
-              onChange={(e) => setNewInventory({ ...newInventory, expiry: e.target.value })}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+              <input type="date" className="border p-2 w-full" required min={getTodayDate()}
+                value={newInventory.expiry}
+                onChange={(e) => setNewInventory({ ...newInventory, expiry: e.target.value })}
+                title="Select the expiry date for this inventory item"
+              />
+            </div>
 
             <button type="submit" className="w-full bg-indigo-600 text-white py-2 rounded">Submit</button>
           </form>
@@ -630,45 +702,61 @@ export default function Dashboard() {
         <Modal title="Edit Inventory" onClose={() => setEditItem(null)}>
           <form onSubmit={handleUpdateInventory} className="space-y-3">
 
-            <select className="border p-2 w-full" required
-              value={editItem.org}
-              onChange={(e) => {
-                const city = getCityByHospital(e.target.value);
-                setEditItem({ ...editItem, org: e.target.value, city });
-              }}
-            >
-              <option value="">Select Hospital</option>
-              {HOSPITALS.map((hospital) => (
-                <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
-              ))}
-            </select>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hospital</label>
+              <select className="border p-2 w-full" required
+                value={editItem.org}
+                onChange={(e) => {
+                  const city = getCityByHospital(e.target.value);
+                  setEditItem({ ...editItem, org: e.target.value, city });
+                }}
+              >
+                <option value="">Select Hospital</option>
+                {HOSPITALS.map((hospital) => (
+                  <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
+                ))}
+              </select>
+            </div>
 
-            <input 
-              type="text" 
-              className="border p-2 w-full bg-gray-100" 
-              readOnly
-              placeholder="City (auto-populated)"
-              value={editItem.city}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+              <input 
+                type="text" 
+                className="border p-2 w-full bg-gray-100" 
+                readOnly
+                placeholder="City (auto-populated)"
+                value={editItem.city}
+              />
+            </div>
 
-            <select className="border p-2 w-full" required
-              value={editItem.item}
-              onChange={(e) => setEditItem({ ...editItem, item: e.target.value })}
-            >
-              {ITEM_OPTIONS.map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </select>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Item</label>
+              <select className="border p-2 w-full" required
+                value={editItem.item}
+                onChange={(e) => setEditItem({ ...editItem, item: e.target.value })}
+              >
+                {ITEM_OPTIONS.map((name) => (
+                  <option key={name}>{name}</option>
+                ))}
+              </select>
+            </div>
 
-            <input type="number" className="border p-2 w-full" required min="1"
-              value={editItem.qty}
-              onChange={(e) => setEditItem({ ...editItem, qty: e.target.value })}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+              <input type="number" className="border p-2 w-full" required min="1"
+                value={editItem.qty}
+                onChange={(e) => setEditItem({ ...editItem, qty: e.target.value })}
+              />
+            </div>
 
-            <input type="date" className="border p-2 w-full" required min={getTodayDate()}
-              value={editItem.expiry}
-              onChange={(e) => setEditItem({ ...editItem, expiry: e.target.value })}
-            />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+              <input type="date" className="border p-2 w-full" required min={getTodayDate()}
+                value={editItem.expiry}
+                onChange={(e) => setEditItem({ ...editItem, expiry: e.target.value })}
+                title="Select the expiry date for this inventory item"
+              />
+            </div>
 
             <button className="w-full bg-blue-600 text-white py-2 rounded">
               Save Changes

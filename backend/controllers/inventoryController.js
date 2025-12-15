@@ -34,18 +34,35 @@ exports.addInventory = async (req, res) => {
       });
     }
     
-    const newItem = await Inventory.create({
-      org,
-      city,
-      item,
-      qty: Number(qty),
-      expiry
+    // Check if an inventory item with the same org, item, and expiry already exists
+    const existingItem = await Inventory.findOne({
+      org: org,
+      item: item,
+      expiry: expiry
     });
     
-    // Check for potential matches after adding inventory
+    let resultItem;
+    if (existingItem) {
+      // If exists, update the quantity by adding the new quantity to existing quantity
+      existingItem.qty = existingItem.qty + Number(qty);
+      resultItem = await existingItem.save();
+      console.log(`Updated existing inventory item ${existingItem._id}: added ${qty} to existing ${existingItem.qty - Number(qty)}, new total: ${resultItem.qty}`);
+    } else {
+      // If not exists, create a new inventory item
+      resultItem = await Inventory.create({
+        org,
+        city,
+        item,
+        qty: Number(qty),
+        expiry
+      });
+      console.log(`Created new inventory item ${resultItem._id}`);
+    }
+    
+    // Check for potential matches after adding/updating inventory
     await checkAndCreateMatchNotifications();
     
-    res.json(newItem);
+    res.json(resultItem);
   } catch (error) {
     console.error("Add Inventory Error:", error);
     
