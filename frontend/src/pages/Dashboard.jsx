@@ -9,6 +9,7 @@ import {
   deleteRequest,
   updateRequest,
 } from "../api/api";
+import { useAuth } from "../context/AuthContext";
 
 import { ITEM_OPTIONS } from "../data/items";
 import { HOSPITALS, getCityByHospital } from "../data/hospitals";
@@ -49,6 +50,7 @@ function Modal({ title, children, onClose }) {
 
 // ---------- MAIN DASHBOARD ----------
 export default function Dashboard() {
+  const { user, isRUSH } = useAuth();
   const [inventories, setInventories] = useState([]);
   const [requests, setRequests] = useState([]);
 
@@ -93,11 +95,25 @@ export default function Dashboard() {
   const loadData = async () => {
     const inv = await getInventory();
     const req = await getRequests();
-    setInventories(inv.data);
-    setRequests(req.data);
+    
+    // Filter inventories: All users see only RUSH inventory
+    const rushInventory = inv.data.filter(item => 
+      item.org === "Rush University Medical Center" || item.org === "RUSH"
+    );
+    setInventories(rushInventory);
+    
+    // Filter requests: Users see only their own hospital's requests
+    const userRequests = req.data.filter(request => 
+      request.org === user?.hospital || request.org === "RUSH"
+    );
+    setRequests(userRequests);
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { 
+    if (user) {
+      loadData(); 
+    }
+  }, [user]);
 
   // --------- VALIDATION HELPERS ----------
   const getTodayDate = () => {
@@ -383,20 +399,24 @@ export default function Dashboard() {
     <div className="max-w-6xl mx-auto p-8 space-y-8">
 
       {/* TOP BUTTONS */}
-      <div className="flex gap-4">
-        <button
-          className="px-4 py-2 bg-indigo-600 text-white rounded-xl"
-          onClick={() => setShowAddInventory(true)}
-        >
-          + Add Inventory
-        </button>
+      <div className="flex gap-4 justify-between items-center">
+        <div className="flex gap-4">
+          {isRUSH && (
+            <button
+              className="px-4 py-2 bg-indigo-600 text-white rounded-xl"
+              onClick={() => setShowAddInventory(true)}
+            >
+              + Add Inventory
+            </button>
+          )}
 
-        <button
-          className="px-4 py-2 bg-green-600 text-white rounded-xl"
-          onClick={() => setShowAddRequest(true)}
-        >
-          + Add Request
-        </button>
+          <button
+            className="px-4 py-2 bg-green-600 text-white rounded-xl"
+            onClick={() => setShowAddRequest(true)}
+          >
+            + Add Request
+          </button>
+        </div>
       </div>
 
       {/* OVERVIEW */}
@@ -512,10 +532,14 @@ export default function Dashboard() {
                       {i.expiry}
                     </td>
                     <td className="p-2 text-center">
-                      <div className="flex gap-3 justify-center">
-                        <button className="text-blue-600" onClick={() => setEditItem(i)}>Edit</button>
-                        <button className="text-red-600" onClick={() => handleDeleteInventory(i._id)}>Delete</button>
-                      </div>
+                      {isRUSH ? (
+                        <div className="flex gap-3 justify-center">
+                          <button className="text-blue-600" onClick={() => setEditItem(i)}>Edit</button>
+                          <button className="text-red-600" onClick={() => handleDeleteInventory(i._id)}>Delete</button>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-sm">View Only</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -822,6 +846,7 @@ export default function Dashboard() {
           </form>
         </Modal>
       )}
+
 
     </div>
   );
