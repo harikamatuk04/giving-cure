@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const inventoryRoutes = require("./routes/inventoryRoutes");
 const requestRoutes = require("./routes/requestRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const authRoutes = require("./routes/authRoutes");
 
 const app = express();
 app.use(cors());
@@ -30,6 +31,7 @@ mongoose.connection.on('disconnected', () => {
 });
 
 // Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/requests", requestRoutes);
 app.use("/api/notifications", notificationRoutes);
