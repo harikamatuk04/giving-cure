@@ -145,6 +145,7 @@ export const ITEM_OPTIONS = [
     "Sharps Container (5 gal)",
     "Emesis Basin (Disposable)",
     "Graduated Basin, Sterile",
+    "Sponge Kits with Iodine",
     "Biohazard Bag (Red)",
     "Specimen Biohazard Bag (with pouch)",
     "Underpad / Chux (23\" x 36\")",
