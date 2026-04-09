@@ -525,10 +525,11 @@ export default function SignIn() {
               </label>
               <input
                 ref={emailInputRef}
-                type={isAdminOnlyMode ? "text" : "email"}
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={isAdminOnlyMode ? "Enter admin username" : "your.email@rush.edu"}
+                autoComplete="username"
                 className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 required
               />
