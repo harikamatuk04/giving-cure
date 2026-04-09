@@ -5,7 +5,11 @@ const jwt = require("jsonwebtoken");
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 const AUTH_ADMIN_ONLY = process.env.AUTH_ADMIN_ONLY === "true";
-const ADMIN_EMAIL = (process.env.ADMIN_LOGIN_EMAIL || "").toLowerCase().trim();
+const ADMIN_EMAIL = (
+  process.env.ADMIN_LOGIN_EMAIL || "givingcureadmin@givingcure.local"
+)
+  .toLowerCase()
+  .trim();
 const ADMIN_USERNAME = (process.env.ADMIN_LOGIN_USERNAME || "GivingCureAdmin").trim();
 const ADMIN_PASSWORD = (process.env.ADMIN_LOGIN_PASSWORD || "givingcurepass1@").trim();
 
@@ -33,6 +37,24 @@ const adminOnlyDisabledResponse = (res) =>
     error:
       "Sign-up and password reset are temporarily disabled. Please use the shared admin account.",
   });
+
+const getOrCreateAdminUser = async () => {
+  let adminUser = await User.findOne({ email: ADMIN_EMAIL });
+  if (adminUser) {
+    if (!adminUser.emailVerified || adminUser.hospital !== "RUSH") {
+      adminUser.emailVerified = true;
+      adminUser.hospital = "RUSH";
+      await adminUser.save();
+    }
+    return adminUser;
+  }
+
+  return User.create({
+    email: ADMIN_EMAIL,
+    hospital: "RUSH",
+    emailVerified: true,
+  });
+};
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -250,25 +272,13 @@ exports.signIn = async (req, res) => {
     }
 
     if (AUTH_ADMIN_ONLY) {
-      if (!ADMIN_EMAIL) {
-        return res.status(500).json({
-          error: "Admin login is not configured. Please set ADMIN_LOGIN_EMAIL.",
-        });
-      }
-
       const isUsernameMatch = identifier.trim() === ADMIN_USERNAME;
       const isPasswordMatch = password === ADMIN_PASSWORD;
       if (!isUsernameMatch || !isPasswordMatch) {
         return res.status(401).json({ error: "Invalid username or password" });
       }
 
-      const adminUser = await User.findOne({ email: ADMIN_EMAIL });
-      if (!adminUser) {
-        return res.status(401).json({ error: "Admin account not found" });
-      }
-      if (!adminUser.emailVerified) {
-        return res.status(401).json({ error: "Admin account is not verified" });
-      }
+      const adminUser = await getOrCreateAdminUser();
 
       const token = generateToken(adminUser._id);
       return res.json({
