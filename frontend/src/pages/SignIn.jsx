@@ -34,6 +34,9 @@ const PasswordInput = React.memo(({ value, onChange, placeholder, show, onToggle
 export default function SignIn() {
   const navigate = useNavigate();
   const { signIn } = useAuth();
+  const isAdminOnlyMode = import.meta.env.VITE_AUTH_ADMIN_ONLY === "true";
+  const adminUsernameHint =
+    import.meta.env.VITE_ADMIN_LOGIN_USERNAME || "GivingCureAdmin";
   const [step, setStep] = useState("signin"); // "email", "code", "password", "signin", "forgot-password", "reset-code", "reset-password"
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -74,6 +77,10 @@ export default function SignIn() {
   // Step 1: Submit email (sign up)
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
+    if (isAdminOnlyMode) {
+      setError("Sign-up is temporarily disabled. Please use the shared admin login.");
+      return;
+    }
     setError("");
     setSuccess("");
     setLoading(true);
@@ -96,6 +103,10 @@ export default function SignIn() {
   // Forgot password - send reset code
   const handleForgotPasswordSubmit = async (e) => {
     e.preventDefault();
+    if (isAdminOnlyMode) {
+      setError("Password reset is temporarily disabled. Contact the admin for access.");
+      return;
+    }
     setError("");
     setSuccess("");
     setLoading(true);
@@ -118,6 +129,10 @@ export default function SignIn() {
   // Resend verification code
   const handleResendCode = async () => {
     if (resendTimer > 0) return;
+    if (isAdminOnlyMode) {
+      setError("Verification flow is temporarily disabled in admin-only mode.");
+      return;
+    }
     
     setError("");
     setSuccess("");
@@ -147,6 +162,10 @@ export default function SignIn() {
   // Step 2: Verify code (sign up)
   const handleCodeSubmit = async (e) => {
     e.preventDefault();
+    if (isAdminOnlyMode) {
+      setError("Verification flow is temporarily disabled in admin-only mode.");
+      return;
+    }
     setError("");
     setSuccess("");
     setLoading(true);
@@ -168,6 +187,10 @@ export default function SignIn() {
   // Verify password reset code
   const handleResetCodeSubmit = async (e) => {
     e.preventDefault();
+    if (isAdminOnlyMode) {
+      setError("Password reset is temporarily disabled in admin-only mode.");
+      return;
+    }
     setError("");
     setSuccess("");
     setLoading(true);
@@ -188,6 +211,10 @@ export default function SignIn() {
   // Step 3: Create password (sign up)
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
+    if (isAdminOnlyMode) {
+      setError("Account creation is temporarily disabled. Use the shared admin login.");
+      return;
+    }
     setError("");
     setSuccess("");
 
@@ -232,6 +259,10 @@ export default function SignIn() {
   // Reset password
   const handleResetPasswordSubmit = async (e) => {
     e.preventDefault();
+    if (isAdminOnlyMode) {
+      setError("Password reset is temporarily disabled. Contact the admin for access.");
+      return;
+    }
     setError("");
     setSuccess("");
 
@@ -281,7 +312,8 @@ export default function SignIn() {
     setSuccess("");
     setLoading(true);
 
-    const signInResult = await signIn(email, password);
+    const signInIdentifier = isAdminOnlyMode ? email.trim() : email;
+    const signInResult = await signIn(signInIdentifier, password);
     if (signInResult.success) {
       navigate("/dashboard");
     } else {
@@ -290,7 +322,7 @@ export default function SignIn() {
     setLoading(false);
   };
 
-  return (
+    return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
       <h1 className="text-3xl font-semibold mb-6 text-indigo-700">
         {step === "signin"
@@ -320,6 +352,13 @@ export default function SignIn() {
         {success && (
           <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
             {success}
+          </div>
+        )}
+
+        {isAdminOnlyMode && step === "signin" && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg text-sm">
+            Admin-only access is enabled. Sign in with username:{" "}
+            <span className="font-semibold">{adminUsernameHint}</span>
           </div>
         )}
 
@@ -482,14 +521,14 @@ export default function SignIn() {
           <form onSubmit={handleSignIn} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
+                {isAdminOnlyMode ? "Username" : "Email"}
               </label>
               <input
                 ref={emailInputRef}
-                type="email"
+                type={isAdminOnlyMode ? "text" : "email"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="your.email@rush.edu"
+                placeholder={isAdminOnlyMode ? "Enter admin username" : "your.email@rush.edu"}
                 className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 required
               />
@@ -514,31 +553,35 @@ export default function SignIn() {
               {loading ? "Signing In..." : "Sign In"}
             </button>
             <div className="flex justify-between text-sm">
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("forgot-password");
-                  setPassword("");
-                  setError("");
-                  setSuccess("");
-                }}
-                className="text-indigo-600 hover:underline"
-              >
-                Forgot password?
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("email");
-                  setEmail("");
-                  setPassword("");
-                  setError("");
-                  setSuccess("");
-                }}
-                className="text-indigo-600 hover:underline"
-              >
-                Don't have an account? Sign up
-              </button>
+              {!isAdminOnlyMode && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("forgot-password");
+                      setPassword("");
+                      setError("");
+                      setSuccess("");
+                    }}
+                    className="text-indigo-600 hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("email");
+                      setEmail("");
+                      setPassword("");
+                      setError("");
+                      setSuccess("");
+                    }}
+                    className="text-indigo-600 hover:underline"
+                  >
+                    Don't have an account? Sign up
+                  </button>
+                </>
+              )}
             </div>
           </form>
         )}
@@ -550,9 +593,9 @@ export default function SignIn() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Email Address
               </label>
-              <input
+          <input
                 ref={emailInputRef}
-                type="email"
+            type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your.email@rush.edu"
@@ -592,7 +635,7 @@ export default function SignIn() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Verification Code
               </label>
-              <input
+          <input
                 ref={codeInputRef}
                 type="text"
                 value={code}
@@ -691,10 +734,11 @@ export default function SignIn() {
               className="w-full text-gray-600 text-sm hover:underline"
             >
               Back to code verification
-            </button>
-          </form>
+          </button>
+        </form>
         )}
       </div>
-    </div>
-  );
-}
+      </div>
+    );
+  }
+  

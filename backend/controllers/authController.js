@@ -4,6 +4,35 @@ const { generateVerificationCode, sendVerificationCode } = require("../utils/ema
 const jwt = require("jsonwebtoken");
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const AUTH_ADMIN_ONLY = process.env.AUTH_ADMIN_ONLY === "true";
+const ADMIN_EMAIL = (process.env.ADMIN_LOGIN_EMAIL || "").toLowerCase().trim();
+const ADMIN_USERNAME = (process.env.ADMIN_LOGIN_USERNAME || "GivingCureAdmin").trim();
+const ADMIN_PASSWORD = (process.env.ADMIN_LOGIN_PASSWORD || "givingcurepass1@").trim();
+
+const resolveAdminEmailFromIdentifier = (identifier) => {
+  if (!AUTH_ADMIN_ONLY) return identifier;
+  if (!identifier) return "";
+
+  const normalized = identifier.toLowerCase().trim();
+  if (normalized.includes("@")) return normalized;
+  if (ADMIN_USERNAME && identifier.trim() === ADMIN_USERNAME) {
+    return ADMIN_EMAIL;
+  }
+  return normalized;
+};
+
+const isAdminOnlyBlocked = (identifier) => {
+  if (!AUTH_ADMIN_ONLY) return false;
+  if (!ADMIN_EMAIL) return true;
+  const resolvedEmail = resolveAdminEmailFromIdentifier(identifier);
+  return resolvedEmail !== ADMIN_EMAIL;
+};
+
+const adminOnlyDisabledResponse = (res) =>
+  res.status(403).json({
+    error:
+      "Sign-up and password reset are temporarily disabled. Please use the shared admin account.",
+  });
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -20,6 +49,10 @@ exports.sendVerificationCode = async (req, res) => {
     
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
+    }
+
+    if (AUTH_ADMIN_ONLY) {
+      return adminOnlyDisabledResponse(res);
     }
     
     // Validate email domain
@@ -107,6 +140,10 @@ exports.verifyCode = async (req, res) => {
     if (!email || !code) {
       return res.status(400).json({ error: "Email and verification code are required" });
     }
+
+    if (AUTH_ADMIN_ONLY) {
+      return adminOnlyDisabledResponse(res);
+    }
     
     const user = await User.findOne({ email: email.toLowerCase() });
     
@@ -148,6 +185,10 @@ exports.createPassword = async (req, res) => {
     
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    if (AUTH_ADMIN_ONLY) {
+      return adminOnlyDisabledResponse(res);
     }
     
     // Validate password requirements
@@ -195,13 +236,55 @@ exports.createPassword = async (req, res) => {
 // Sign in
 exports.signIn = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, username, password } = req.body;
+    const identifier = username || email;
     
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+    if (!identifier || !password) {
+      return res.status(400).json({ error: "Username/email and password are required" });
     }
+
+    if (isAdminOnlyBlocked(identifier)) {
+      return res.status(403).json({
+        error: "Only the shared admin credentials can sign in right now.",
+      });
+    }
+
+    if (AUTH_ADMIN_ONLY) {
+      if (!ADMIN_EMAIL) {
+        return res.status(500).json({
+          error: "Admin login is not configured. Please set ADMIN_LOGIN_EMAIL.",
+        });
+      }
+
+      const isUsernameMatch = identifier.trim() === ADMIN_USERNAME;
+      const isPasswordMatch = password === ADMIN_PASSWORD;
+      if (!isUsernameMatch || !isPasswordMatch) {
+        return res.status(401).json({ error: "Invalid username or password" });
+      }
+
+      const adminUser = await User.findOne({ email: ADMIN_EMAIL });
+      if (!adminUser) {
+        return res.status(401).json({ error: "Admin account not found" });
+      }
+      if (!adminUser.emailVerified) {
+        return res.status(401).json({ error: "Admin account is not verified" });
+      }
+
+      const token = generateToken(adminUser._id);
+      return res.json({
+        success: true,
+        token,
+        user: {
+          id: adminUser._id,
+          email: adminUser.email,
+          hospital: adminUser.hospital,
+        },
+      });
+    }
+
+    const loginEmail = resolveAdminEmailFromIdentifier(identifier);
     
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: loginEmail.toLowerCase() });
     
     if (!user) {
       return res.status(401).json({ error: "Invalid email or password" });
@@ -257,6 +340,10 @@ exports.sendPasswordResetCode = async (req, res) => {
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
     }
+
+    if (AUTH_ADMIN_ONLY) {
+      return adminOnlyDisabledResponse(res);
+    }
     
     // Validate email domain
     const validation = validateEmailDomain(email);
@@ -305,6 +392,10 @@ exports.verifyPasswordResetCode = async (req, res) => {
     if (!email || !code) {
       return res.status(400).json({ error: "Email and verification code are required" });
     }
+
+    if (AUTH_ADMIN_ONLY) {
+      return adminOnlyDisabledResponse(res);
+    }
     
     const user = await User.findOne({ email: email.toLowerCase() });
     
@@ -341,6 +432,10 @@ exports.resetPassword = async (req, res) => {
     
     if (!email || !code || !password) {
       return res.status(400).json({ error: "Email, verification code, and password are required" });
+    }
+
+    if (AUTH_ADMIN_ONLY) {
+      return adminOnlyDisabledResponse(res);
     }
     
     // Validate password requirements
@@ -395,6 +490,12 @@ exports.resetPassword = async (req, res) => {
 // Delete account
 exports.deleteAccount = async (req, res) => {
   try {
+    if (AUTH_ADMIN_ONLY) {
+      return res.status(403).json({
+        error: "Account deletion is disabled while admin-only mode is enabled.",
+      });
+    }
+
     const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
