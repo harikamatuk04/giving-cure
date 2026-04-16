@@ -47,9 +47,31 @@ function Modal({ title, children, onClose }) {
   );
 }
 
+function ItemSearchInput({ id, value, onChange, placeholder = "Search item..." }) {
+  return (
+    <>
+      <input
+        type="text"
+        list={id}
+        className="border p-2 w-full"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        required
+      />
+      <datalist id={id}>
+        {ITEM_OPTIONS.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+    </>
+  );
+}
+
 
 // ---------- MAIN DASHBOARD ----------
 export default function Dashboard() {
+  const OTHER_ITEM_OPTION = "Other";
   const { user, isRUSH } = useAuth();
   const [inventories, setInventories] = useState([]);
   const [requests, setRequests] = useState([]);
@@ -63,6 +85,7 @@ export default function Dashboard() {
     org: "",
     city: "",
     item: "",
+    otherItemDescription: "",
     qty: "",
     expiry: "",
   });
@@ -71,9 +94,30 @@ export default function Dashboard() {
     org: "",
     city: "",
     item: "",
+    otherItemDescription: "",
     qty: "",
     urgency: "",
   });
+
+  const getItemEditorState = (itemValue = "") => {
+    const trimmedValue = itemValue.trim();
+    if (!trimmedValue) {
+      return { isOtherItem: false, otherItemDescription: "" };
+    }
+    if (ITEM_OPTIONS.includes(trimmedValue) && trimmedValue !== OTHER_ITEM_OPTION) {
+      return { isOtherItem: false, otherItemDescription: "" };
+    }
+    if (trimmedValue === OTHER_ITEM_OPTION) {
+      return { isOtherItem: true, otherItemDescription: "" };
+    }
+    if (trimmedValue.startsWith("Other: ")) {
+      return {
+        isOtherItem: true,
+        otherItemDescription: trimmedValue.slice("Other: ".length).trim(),
+      };
+    }
+    return { isOtherItem: true, otherItemDescription: trimmedValue };
+  };
 
   // Grouping and sorting state
   const [inventoryGroupBy, setInventoryGroupBy] = useState("hospital"); // "hospital", "city", "item", "none"
@@ -89,6 +133,48 @@ export default function Dashboard() {
     } else {
       setNewRequest({ ...newRequest, org: hospitalName, city });
     }
+  };
+
+  const handleNewInventoryItemChange = (value) => {
+    if (value === OTHER_ITEM_OPTION) {
+      setNewInventory({ ...newInventory, item: OTHER_ITEM_OPTION });
+      return;
+    }
+    setNewInventory({
+      ...newInventory,
+      item: value,
+      otherItemDescription: "",
+    });
+  };
+
+  const handleNewRequestItemChange = (value) => {
+    if (value === OTHER_ITEM_OPTION) {
+      setNewRequest({ ...newRequest, item: OTHER_ITEM_OPTION });
+      return;
+    }
+    setNewRequest({
+      ...newRequest,
+      item: value,
+      otherItemDescription: "",
+    });
+  };
+
+  const openEditInventory = (inventoryItem) => {
+    const { isOtherItem, otherItemDescription } = getItemEditorState(inventoryItem.item);
+    setEditItem({
+      ...inventoryItem,
+      isOtherItem,
+      otherItemDescription,
+    });
+  };
+
+  const openEditRequest = (requestItem) => {
+    const { isOtherItem, otherItemDescription } = getItemEditorState(requestItem.item);
+    setEditRequest({
+      ...requestItem,
+      isOtherItem,
+      otherItemDescription,
+    });
   };
 
   // --------- LOAD DATA ----------
@@ -137,6 +223,13 @@ export default function Dashboard() {
   // --------- ADD NEW INVENTORY ----------
   const handleAddInventory = async (e) => {
     e.preventDefault();
+    const isOtherItem = newInventory.item === OTHER_ITEM_OPTION;
+    const customItemDescription = newInventory.otherItemDescription.trim();
+    if (isOtherItem && !customItemDescription) {
+      alert("Please enter an item description for Other.");
+      return;
+    }
+    const itemValue = isOtherItem ? `Other: ${customItemDescription}` : newInventory.item;
     
     // Validate quantity
     if (!validateQuantity(newInventory.qty)) {
@@ -154,11 +247,12 @@ export default function Dashboard() {
       // Convert qty to number before sending
       const inventoryData = {
         ...newInventory,
+        item: itemValue,
         qty: Number(newInventory.qty)
       };
       const response = await addInventory(inventoryData);
       setShowAddInventory(false);
-      setNewInventory({ org: "", city: "", item: "", qty: "", expiry: "" });
+      setNewInventory({ org: "", city: "", item: "", otherItemDescription: "", qty: "", expiry: "" });
       loadData();
     } catch (error) {
       console.error("Error adding inventory:", error);
@@ -176,6 +270,13 @@ export default function Dashboard() {
   // --------- ADD NEW REQUEST ----------
   const handleAddRequest = async (e) => {
     e.preventDefault();
+    const isOtherItem = newRequest.item === OTHER_ITEM_OPTION;
+    const customItemDescription = newRequest.otherItemDescription.trim();
+    if (isOtherItem && !customItemDescription) {
+      alert("Please enter an item description for Other.");
+      return;
+    }
+    const itemValue = isOtherItem ? `Other: ${customItemDescription}` : newRequest.item;
     
     // Validate quantity
     if (!validateQuantity(newRequest.qty)) {
@@ -187,11 +288,12 @@ export default function Dashboard() {
       // Convert qty to number before sending
       const requestData = {
         ...newRequest,
+        item: itemValue,
         qty: Number(newRequest.qty)
       };
       const response = await addRequest(requestData);
       setShowAddRequest(false);
-      setNewRequest({ org: "", city: "", item: "", qty: "", urgency: "" });
+      setNewRequest({ org: "", city: "", item: "", otherItemDescription: "", qty: "", urgency: "" });
       loadData();
     } catch (error) {
       console.error("Error adding request:", error);
@@ -220,6 +322,13 @@ export default function Dashboard() {
   // --------- UPDATE ----------
   const handleUpdateInventory = async (e) => {
     e.preventDefault();
+    const isOtherItem = editItem.isOtherItem;
+    const customItemDescription = (editItem.otherItemDescription || "").trim();
+    if (isOtherItem && !customItemDescription) {
+      alert("Please enter an item description for Other.");
+      return;
+    }
+    const itemValue = isOtherItem ? `Other: ${customItemDescription}` : editItem.item;
     
     // Validate quantity
     if (!validateQuantity(editItem.qty)) {
@@ -236,8 +345,11 @@ export default function Dashboard() {
     // Convert qty to number before sending
     const inventoryData = {
       ...editItem,
+      item: itemValue,
       qty: Number(editItem.qty)
     };
+    delete inventoryData.isOtherItem;
+    delete inventoryData.otherItemDescription;
     await updateInventory(editItem._id, inventoryData);
     setEditItem(null);
     loadData();
@@ -245,6 +357,13 @@ export default function Dashboard() {
 
   const handleUpdateRequest = async (e) => {
     e.preventDefault();
+    const isOtherItem = editRequest.isOtherItem;
+    const customItemDescription = (editRequest.otherItemDescription || "").trim();
+    if (isOtherItem && !customItemDescription) {
+      alert("Please enter an item description for Other.");
+      return;
+    }
+    const itemValue = isOtherItem ? `Other: ${customItemDescription}` : editRequest.item;
     
     // Validate quantity
     if (!validateQuantity(editRequest.qty)) {
@@ -255,8 +374,11 @@ export default function Dashboard() {
     // Convert qty to number before sending
     const requestData = {
       ...editRequest,
+      item: itemValue,
       qty: Number(editRequest.qty)
     };
+    delete requestData.isOtherItem;
+    delete requestData.otherItemDescription;
     await updateRequest(editRequest._id, requestData);
     setEditRequest(null);
     loadData();
@@ -400,22 +522,22 @@ export default function Dashboard() {
 
       {/* TOP BUTTONS */}
       <div className="flex gap-4 justify-between items-center">
-        <div className="flex gap-4">
+      <div className="flex gap-4">
           {isRUSH && (
-            <button
-              className="px-4 py-2 bg-indigo-600 text-white rounded-xl"
-              onClick={() => setShowAddInventory(true)}
-            >
-              + Add Inventory
-            </button>
+        <button
+          className="px-4 py-2 bg-indigo-600 text-white rounded-xl"
+          onClick={() => setShowAddInventory(true)}
+        >
+          + Add Inventory
+        </button>
           )}
 
-          <button
-            className="px-4 py-2 bg-green-600 text-white rounded-xl"
-            onClick={() => setShowAddRequest(true)}
-          >
-            + Add Request
-          </button>
+        <button
+          className="px-4 py-2 bg-green-600 text-white rounded-xl"
+          onClick={() => setShowAddRequest(true)}
+        >
+          + Add Request
+        </button>
         </div>
       </div>
 
@@ -472,15 +594,15 @@ export default function Dashboard() {
             </select>
           </div>
           {inventoryTab === "active" && (
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Sort by expiry:</label>
-              <input
-                type="checkbox"
-                checked={sortByExpiry}
-                onChange={(e) => setSortByExpiry(e.target.checked)}
-                className="w-4 h-4"
-              />
-            </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Sort by expiry:</label>
+            <input
+              type="checkbox"
+              checked={sortByExpiry}
+              onChange={(e) => setSortByExpiry(e.target.checked)}
+              className="w-4 h-4"
+            />
+          </div>
           )}
         </div>
 
@@ -499,8 +621,8 @@ export default function Dashboard() {
                 {inventoryGroupBy === "hospital" && "🏥 "}
                 {inventoryGroupBy === "city" && "📍 "}
                 {inventoryGroupBy === "item" && "📦 "}
-                {groupKey} ({groupItems.length} {groupItems.length === 1 ? "item" : "items"})
-              </h4>
+              {groupKey} ({groupItems.length} {groupItems.length === 1 ? "item" : "items"})
+            </h4>
             )}
             <table className="min-w-full text-sm table-fixed">
               <colgroup>
@@ -533,10 +655,10 @@ export default function Dashboard() {
                     </td>
                     <td className="p-2 text-center">
                       {isRUSH ? (
-                        <div className="flex gap-3 justify-center">
-                          <button className="text-blue-600" onClick={() => setEditItem(i)}>Edit</button>
-                          <button className="text-red-600" onClick={() => handleDeleteInventory(i._id)}>Delete</button>
-                        </div>
+                      <div className="flex gap-3 justify-center">
+                        <button className="text-blue-600" onClick={() => openEditInventory(i)}>Edit</button>
+                        <button className="text-red-600" onClick={() => handleDeleteInventory(i._id)}>Delete</button>
+                      </div>
                       ) : (
                         <span className="text-gray-400 text-sm">View Only</span>
                       )}
@@ -589,19 +711,19 @@ export default function Dashboard() {
                 <col className="w-[12%]" />
                 <col className="w-[17%]" />
               </colgroup>
-              <thead className="bg-gray-100">
-                <tr>
+          <thead className="bg-gray-100">
+            <tr>
                   <th className="p-2 text-center">Hospital</th>
                   <th className="p-2 text-center">City</th>
                   <th className="p-2 text-center">Item</th>
                   <th className="p-2 text-center">Qty</th>
                   <th className="p-2 text-center">Urgency</th>
                   <th className="p-2 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+            </tr>
+          </thead>
+          <tbody>
                 {groupRequests.map((r) => (
-                  <tr key={r._id} className="border-b">
+              <tr key={r._id} className="border-b">
                     <td className="p-2 text-center">{r.org}</td>
                     <td className="p-2 text-center">{r.city}</td>
                     <td className="p-2 text-center">{r.item}</td>
@@ -609,14 +731,14 @@ export default function Dashboard() {
                     <td className="p-2 text-center">{r.urgency}</td>
                     <td className="p-2 text-center">
                       <div className="flex gap-3 justify-center">
-                        <button className="text-blue-600" onClick={() => setEditRequest(r)}>Edit</button>
-                        <button className="text-red-600" onClick={() => handleDeleteRequest(r._id)}>Delete</button>
+                  <button className="text-blue-600" onClick={() => openEditRequest(r)}>Edit</button>
+                  <button className="text-red-600" onClick={() => handleDeleteRequest(r._id)}>Delete</button>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
           </div>
         ))}
       </Card>
@@ -630,45 +752,57 @@ export default function Dashboard() {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Hospital</label>
-              <select className="border p-2 w-full" required
-                value={newInventory.org}
-                onChange={(e) => handleHospitalChange(e.target.value, true)}
-              >
-                <option value="">Select Hospital</option>
+            <select className="border p-2 w-full" required
+              value={newInventory.org}
+              onChange={(e) => handleHospitalChange(e.target.value, true)}
+            >
+              <option value="">Select Hospital</option>
                 {HOSPITALS.filter(hospital => hospital.name === "Rush University Medical Center").map((hospital) => (
-                  <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
-                ))}
-              </select>
+                <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
+              ))}
+            </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Item</label>
-              <select className="border p-2 w-full" required
-                value={newInventory.item}
-                onChange={(e) => setNewInventory({ ...newInventory, item: e.target.value })}
-              >
-                <option value="">Select Item</option>
-                {ITEM_OPTIONS.map((name) => (
-                  <option key={name}>{name}</option>
-                ))}
-              </select>
+            <ItemSearchInput
+              id="inventory-item-options"
+              value={newInventory.item}
+              onChange={handleNewInventoryItemChange}
+              placeholder="Search or select item"
+            />
             </div>
+            {newInventory.item === OTHER_ITEM_OPTION && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Item Description</label>
+                <input
+                  type="text"
+                  className="border p-2 w-full"
+                  required
+                  placeholder="Describe the item"
+                  value={newInventory.otherItemDescription}
+                  onChange={(e) =>
+                    setNewInventory({ ...newInventory, otherItemDescription: e.target.value })
+                  }
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
               <input type="number" className="border p-2 w-full" required placeholder="Enter quantity" min="1"
-                value={newInventory.qty}
-                onChange={(e) => setNewInventory({ ...newInventory, qty: e.target.value })}
-              />
+              value={newInventory.qty}
+              onChange={(e) => setNewInventory({ ...newInventory, qty: e.target.value })}
+            />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-              <input type="date" className="border p-2 w-full" required min={getTodayDate()}
-                value={newInventory.expiry}
-                onChange={(e) => setNewInventory({ ...newInventory, expiry: e.target.value })}
+            <input type="date" className="border p-2 w-full" required min={getTodayDate()}
+              value={newInventory.expiry}
+              onChange={(e) => setNewInventory({ ...newInventory, expiry: e.target.value })}
                 title="Select the expiry date for this inventory item"
-              />
+            />
             </div>
 
             <button type="submit" className="w-full bg-indigo-600 text-white py-2 rounded">Submit</button>
@@ -691,15 +825,24 @@ export default function Dashboard() {
               ))}
             </select>
 
-            <select className="border p-2 w-full" required
+            <ItemSearchInput
+              id="request-item-options"
               value={newRequest.item}
-              onChange={(e) => setNewRequest({ ...newRequest, item: e.target.value })}
-            >
-              <option value="">Select Item</option>
-              {ITEM_OPTIONS.map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </select>
+              onChange={handleNewRequestItemChange}
+              placeholder="Search or select item"
+            />
+            {newRequest.item === OTHER_ITEM_OPTION && (
+              <input
+                type="text"
+                className="border p-2 w-full"
+                required
+                placeholder="Describe the item"
+                value={newRequest.otherItemDescription}
+                onChange={(e) =>
+                  setNewRequest({ ...newRequest, otherItemDescription: e.target.value })
+                }
+              />
+            )}
 
             <input type="number" className="border p-2 w-full" required placeholder="Quantity" min="1"
               value={newRequest.qty}
@@ -728,58 +871,78 @@ export default function Dashboard() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Hospital</label>
-              <select className="border p-2 w-full" required
-                value={editItem.org}
-                onChange={(e) => {
-                  const city = getCityByHospital(e.target.value);
-                  setEditItem({ ...editItem, org: e.target.value, city });
-                }}
-              >
-                <option value="">Select Hospital</option>
-                {HOSPITALS.map((hospital) => (
-                  <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
-                ))}
-              </select>
+            <select className="border p-2 w-full" required
+              value={editItem.org}
+              onChange={(e) => {
+                const city = getCityByHospital(e.target.value);
+                setEditItem({ ...editItem, org: e.target.value, city });
+              }}
+            >
+              <option value="">Select Hospital</option>
+              {HOSPITALS.map((hospital) => (
+                <option key={hospital.name} value={hospital.name}>{hospital.name}</option>
+              ))}
+            </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-              <input 
-                type="text" 
-                className="border p-2 w-full bg-gray-100" 
-                readOnly
-                placeholder="City (auto-populated)"
-                value={editItem.city}
-              />
+            <input 
+              type="text" 
+              className="border p-2 w-full bg-gray-100" 
+              readOnly
+              placeholder="City (auto-populated)"
+              value={editItem.city}
+            />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Item</label>
-              <select className="border p-2 w-full" required
-                value={editItem.item}
-                onChange={(e) => setEditItem({ ...editItem, item: e.target.value })}
-              >
-                {ITEM_OPTIONS.map((name) => (
-                  <option key={name}>{name}</option>
-                ))}
-              </select>
+            <ItemSearchInput
+              id="edit-inventory-item-options"
+              value={editItem.isOtherItem ? OTHER_ITEM_OPTION : editItem.item}
+              onChange={(value) =>
+                setEditItem({
+                  ...editItem,
+                  item: value,
+                  isOtherItem: value === OTHER_ITEM_OPTION,
+                  otherItemDescription: value === OTHER_ITEM_OPTION ? editItem.otherItemDescription || "" : "",
+                })
+              }
+              placeholder="Search or select item"
+            />
             </div>
+            {editItem.isOtherItem && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Item Description</label>
+                <input
+                  type="text"
+                  className="border p-2 w-full"
+                  required
+                  placeholder="Describe the item"
+                  value={editItem.otherItemDescription || ""}
+                  onChange={(e) =>
+                    setEditItem({ ...editItem, otherItemDescription: e.target.value })
+                  }
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-              <input type="number" className="border p-2 w-full" required min="1"
-                value={editItem.qty}
-                onChange={(e) => setEditItem({ ...editItem, qty: e.target.value })}
-              />
+            <input type="number" className="border p-2 w-full" required min="1"
+              value={editItem.qty}
+              onChange={(e) => setEditItem({ ...editItem, qty: e.target.value })}
+            />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-              <input type="date" className="border p-2 w-full" required min={getTodayDate()}
-                value={editItem.expiry}
-                onChange={(e) => setEditItem({ ...editItem, expiry: e.target.value })}
+            <input type="date" className="border p-2 w-full" required min={getTodayDate()}
+              value={editItem.expiry}
+              onChange={(e) => setEditItem({ ...editItem, expiry: e.target.value })}
                 title="Select the expiry date for this inventory item"
-              />
+            />
             </div>
 
             <button className="w-full bg-blue-600 text-white py-2 rounded">
@@ -816,14 +979,31 @@ export default function Dashboard() {
               value={editRequest.city}
             />
 
-            <select className="border p-2 w-full" required
-              value={editRequest.item}
-              onChange={(e) => setEditRequest({ ...editRequest, item: e.target.value })}
-            >
-              {ITEM_OPTIONS.map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </select>
+            <ItemSearchInput
+              id="edit-request-item-options"
+              value={editRequest.isOtherItem ? OTHER_ITEM_OPTION : editRequest.item}
+              onChange={(value) =>
+                setEditRequest({
+                  ...editRequest,
+                  item: value,
+                  isOtherItem: value === OTHER_ITEM_OPTION,
+                  otherItemDescription: value === OTHER_ITEM_OPTION ? editRequest.otherItemDescription || "" : "",
+                })
+              }
+              placeholder="Search or select item"
+            />
+            {editRequest.isOtherItem && (
+              <input
+                type="text"
+                className="border p-2 w-full"
+                required
+                placeholder="Describe the item"
+                value={editRequest.otherItemDescription || ""}
+                onChange={(e) =>
+                  setEditRequest({ ...editRequest, otherItemDescription: e.target.value })
+                }
+              />
+            )}
 
             <input type="number" className="border p-2 w-full" required min="1"
               value={editRequest.qty}
