@@ -182,5 +182,6 @@ export const ITEM_OPTIONS = [
     "NRB Oxygen Mask with Safety Vent, 7 ft Star Lumen",
     "Adult Aerosol Mask",
     "Face Tent Mask, Vinyl (Adult)",
+    "Other",
   ];
   
